@@ -1,0 +1,70 @@
+{
+  "name": "craftquest/craft-feature-flags",
+  "description": "Runtime feature flags for Craft CMS with targeting rules, percentage rollouts, and audit logging.",
+  "version": "1.0.0",
+  "type": "craft-plugin",
+  "license": "proprietary",
+  "keywords": [
+    "craft",
+    "cms",
+    "craftcms",
+    "feature-flags",
+    "feature-toggles",
+    "rollout",
+    "targeting"
+  ],
+  "authors": [
+    {
+      "name": "CraftQuest",
+      "homepage": "https://craftquest.io"
+    }
+  ],
+  "support": {
+    "email": "support@craftquest.io",
+    "docs": "https://github.com/CraftQuest/craft-feature-flags/blob/main/README.md",
+    "issues": "https://github.com/CraftQuest/craft-feature-flags/issues"
+  },
+  "require": {
+    "php": ">=8.2",
+    "craftcms/cms": "^5.3.0",
+    "craftcms/plugin-installer": "^1.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.5"
+  },
+  "suggest": {
+    "craftcms/commerce": "Required for subscriptionPlan targeting rule type"
+  },
+  "autoload": {
+    "psr-4": {
+      "craftquest\\featureflags\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "craftquest\\featureflags\\tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit"
+  },
+  "extra": {
+    "handle": "feature-flags",
+    "name": "Feature Flags",
+    "developer": "CraftQuest",
+    "developerUrl": "https://craftquest.io",
+    "documentationUrl": "https://craftquest.io/plugins/feature-flags",
+    "changelogUrl": "https://github.com/CraftQuest/craft-feature-flags/blob/main/CHANGELOG.md",
+    "class": "craftquest\\featureflags\\FeatureFlags"
+  },
+  "config": {
+    "sort-packages": true,
+    "platform": {
+      "php": "8.2"
+    },
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true,
+      "craftcms/plugin-installer": true
+    }
+  }
+}

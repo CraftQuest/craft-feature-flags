@@ -1,0 +1,21 @@
+{% extends '_layouts/cp' %}
+
+{% requireAdmin false %}
+
+{% set title = 'Settings'|t('feature-flags') %}
+{% set selectedSubnavItem = 'settings' %}
+{% set fullPageForm = not readOnly %}
+
+{% block content %}
+
+    {% if fullPageForm %}
+        {{ actionInput('plugins/save-plugin-settings') }}
+        {{ hiddenInput('pluginHandle', 'feature-flags') }}
+        {{ redirectInput('feature-flags/settings') }}
+    {% endif %}
+
+    {% namespace 'settings' %}
+        {% include 'feature-flags/_settings' with { settings: settings, readOnly: readOnly } %}
+    {% endnamespace %}
+
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends '_layouts/cp' %}
+
+{% set title = flag ? 'Audit Log: {name}'|t('feature-flags', { name: flag.name }) : 'Audit Log'|t('feature-flags') %}
+{% set selectedSubnavItem = 'audit' %}
+{% set crumbs = [
+    { label: 'Feature Flags'|t('feature-flags'), url: url('feature-flags') },
+] %}
+{% if flag %}
+    {% set crumbs = crumbs|merge([{ label: flag.name, url: url('feature-flags/' ~ flag.id) }]) %}
+{% endif %}
+
+{% block content %}
+
+    {% if auditLog|length %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th>{{ 'Date'|t('feature-flags') }}</th>
+                    <th>{{ 'Flag'|t('feature-flags') }}</th>
+                    <th>{{ 'Action'|t('feature-flags') }}</th>
+                    <th>{{ 'User'|t('feature-flags') }}</th>
+                    <th>{{ 'Details'|t('feature-flags') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in auditLog %}
+                    <tr>
+                        <td>{{ entry.dateCreated|datetime('short') }}</td>
+                        <td>
+                            {% if entry.flagName %}
+                                <a href="{{ url('feature-flags/' ~ entry.flagId) }}">{{ entry.flagName }}</a>
+                            {% else %}
+                                <span class="light">{{ '(deleted)'|t('feature-flags') }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% switch entry.action %}
+                                {% case 'created' %}
+                                    <span class="status active"></span>
+                                {% case 'updated' %}
+                                    <span class="status pending"></span>
+                                {% case 'enabled' %}
+                                    <span class="status active"></span>
+                                {% case 'disabled' %}
+                                    <span class="status expired"></span>
+                                {% case 'deleted' %}
+                                    <span class="status disabled"></span>
+                                {% default %}
+                                    <span class="status"></span>
+                            {% endswitch %}
+                            {{ entry.action|capitalize }}
+                        </td>
+                        <td>{{ entry.username ?? '-' }}</td>
+                        <td>
+                            {% if entry.details %}
+                                {% set details = entry.details|json_decode %}
+                                {% if details %}
+                                    <code class="smalltext">{{ details|json_encode }}</code>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="zilch">{{ 'No audit entries yet.'|t('feature-flags') }}</p>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends '_layouts/cp' %}
+
+{% import '_includes/forms' as forms %}
+
+{% set title = 'Feature Flags'|t('feature-flags') %}
+{% set selectedSubnavItem = 'flags' %}
+
+{% block actionButton %}
+    {% if currentUser.can('featureFlags:manage') %}
+        <a href="{{ url('feature-flags/new') }}" class="btn submit add icon">
+            {{ 'New Flag'|t('feature-flags') }}
+        </a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if flags|length %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th>{{ 'Name'|t('feature-flags') }}</th>
+                    <th>{{ 'Type'|t('feature-flags') }}</th>
+                    <th>{{ 'Status'|t('feature-flags') }}</th>
+                    <th>{{ 'Rollout %'|t('feature-flags') }}</th>
+                    <th>{{ 'Rules'|t('feature-flags') }}</th>
+                    <th>{{ 'Expires'|t('feature-flags') }}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for flag in flags %}
+                    <tr data-flag-id="{{ flag.id }}">
+                        <td>
+                            <a href="{{ url('feature-flags/' ~ flag.id) }}">
+                                {{ flag.name }}
+                            </a>
+                            <div class="smalltext light"><code>{{ flag.handle }}</code></div>
+                            {% if flag.description %}
+                                <div class="smalltext light">{{ flag.description|truncate(80) }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ flag.flagType|capitalize }}</td>
+                        <td>
+                            <span class="status {{ flag.enabled ? 'active' : 'expired' }}"></span>
+                            {{ flag.enabled ? 'Enabled'|t('feature-flags') : 'Disabled'|t('feature-flags') }}
+                        </td>
+                        <td>{{ flag.rolloutPercentage is not null ? flag.rolloutPercentage ~ '%' : '—' }}</td>
+                        <td>{{ flag.rules|length }}</td>
+                        <td>
+                            {% if flag.expiresAt %}
+                                {{ flag.expiresAt|datetime('short') }}
+                            {% else %}
+                                <span class="light">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="thin">
+                            <a class="delete icon formsubmit"
+                               data-action="feature-flags/flags/delete"
+                               data-confirm="{{ 'Are you sure you want to delete this flag?'|t('feature-flags') }}"
+                               data-redirect="{{ cpUrl('feature-flags')|hash }}"
+                               data-param="flagId" data-value="{{ flag.id }}"
+                               role="button"
+                               title="{{ 'Delete'|t('app') }}"></a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="zilch">{{ 'No feature flags yet.'|t('feature-flags') }}</p>
+    {% endif %}
+
+{% endblock %}

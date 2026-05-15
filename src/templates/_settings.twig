@@ -1,0 +1,59 @@
+{% import '_includes/forms' as forms %}
+
+{% set readOnly = readOnly ?? false %}
+
+{{ forms.textField({
+    label: 'Plugin Name'|t('feature-flags'),
+    instructions: 'Override the plugin name shown in the CP navigation.'|t('feature-flags'),
+    id: 'pluginName',
+    name: 'pluginName',
+    value: settings.pluginName,
+    placeholder: 'Feature Flags'|t('feature-flags'),
+    errors: settings.getErrors('pluginName'),
+    disabled: readOnly,
+}) }}
+
+{{ forms.textField({
+    label: 'Cache TTL'|t('feature-flags'),
+    instructions: 'How long (in seconds) to cache flag data in the application cache. Set to 0 to disable caching.'|t('feature-flags'),
+    id: 'cacheTtl',
+    name: 'cacheTtl',
+    type: 'number',
+    min: 0,
+    value: settings.cacheTtl,
+    size: 5,
+    errors: settings.getErrors('cacheTtl'),
+    disabled: readOnly,
+}) }}
+
+{{ forms.lightswitchField({
+    label: 'Enable Audit Log'|t('feature-flags'),
+    instructions: 'Log all flag changes with user attribution. Disabling this stops new audit entries from being created.'|t('feature-flags'),
+    id: 'enableAuditLog',
+    name: 'enableAuditLog',
+    on: settings.enableAuditLog,
+    disabled: readOnly,
+}) }}
+
+{{ forms.textField({
+    label: 'Anonymous Cookie Name'|t('feature-flags'),
+    instructions: 'Name of the cookie used to assign a stable visitor ID for anonymous percentage rollouts.'|t('feature-flags'),
+    id: 'anonymousCookieName',
+    name: 'anonymousCookieName',
+    value: settings.anonymousCookieName,
+    errors: settings.getErrors('anonymousCookieName'),
+    disabled: readOnly,
+}) }}
+
+{{ forms.textField({
+    label: 'Anonymous Cookie TTL'|t('feature-flags'),
+    instructions: 'How long (in seconds) the anonymous visitor cookie lasts. Set to 0 to disable cookie-based bucketing.'|t('feature-flags'),
+    id: 'anonymousCookieTtl',
+    name: 'anonymousCookieTtl',
+    type: 'number',
+    min: 0,
+    value: settings.anonymousCookieTtl,
+    size: 10,
+    errors: settings.getErrors('anonymousCookieTtl'),
+    disabled: readOnly,
+}) }}

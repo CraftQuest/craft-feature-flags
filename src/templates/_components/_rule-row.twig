@@ -1,0 +1,23 @@
+{% import '_includes/forms' as forms %}
+
+<div class="rule-row flex" style="gap: 10px; align-items: flex-end; margin-bottom: 10px;">
+    <div style="width: 200px;">
+        {{ forms.selectField({
+            label: index == 0 ? 'Rule Type'|t('feature-flags') : null,
+            name: 'ruleType[]',
+            value: rule ? rule.ruleType : '',
+            options: [{ label: 'Select...', value: '' }]|merge(ruleTypes),
+        }) }}
+    </div>
+    <div class="flex-grow">
+        {{ forms.textField({
+            label: index == 0 ? 'Value'|t('feature-flags') : null,
+            name: 'ruleValue[]',
+            value: rule ? rule.ruleValue : '',
+            placeholder: 'User ID, group handle, plan handle, or env name'|t('feature-flags'),
+        }) }}
+    </div>
+    <div style="width: 30px; padding-bottom: 6px;">
+        <button type="button" class="delete icon" title="{{ 'Remove rule'|t('feature-flags') }}" aria-label="{{ 'Remove rule'|t('feature-flags') }}"></button>
+    </div>
+</div>

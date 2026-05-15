@@ -1,0 +1,225 @@
+{% extends '_layouts/cp' %}
+
+{% import '_includes/forms' as forms %}
+
+{% set fullPageForm = true %}
+{% set selectedSubnavItem = 'flags' %}
+{% set saveShortcut = true %}
+{% set retainScrollOnSaveShortcut = true %}
+{% set saveShortcutRedirect = cpUrl('feature-flags/{id}') %}
+{% set crumbs = [
+    { label: 'Feature Flags'|t('feature-flags'), url: url('feature-flags') },
+] %}
+
+{% set formActions = [
+    {
+        label: 'Save and continue editing'|t('app'),
+        redirect: cpUrl('feature-flags/{id}'),
+        shortcut: true,
+        retainScroll: true,
+    },
+    {
+        label: 'Save and add another'|t('app'),
+        redirect: cpUrl('feature-flags/new'),
+    },
+] %}
+
+{% if flag.id %}
+    {% set formActions = formActions|merge([
+        {
+            label: 'Delete'|t('app'),
+            action: 'feature-flags/flags/delete',
+            confirm: 'Are you sure you want to delete this flag?'|t('feature-flags'),
+            redirect: cpUrl('feature-flags')|hash,
+            destructive: true,
+        },
+    ]) %}
+{% endif %}
+
+{% block content %}
+    {{ actionInput('feature-flags/flags/save') }}
+    {{ redirectInput('feature-flags') }}
+
+    {% if flag.id %}
+        {{ hiddenInput('flagId', flag.id) }}
+    {% endif %}
+
+    {{ forms.lightswitchField({
+        label: 'Enabled'|t('feature-flags'),
+        instructions: 'Master switch. When off, the flag is disabled regardless of rules or rollout.'|t('feature-flags'),
+        id: 'enabled',
+        name: 'enabled',
+        on: flag.enabled,
+    }) }}
+
+    {{ forms.textField({
+        label: 'Name'|t('feature-flags'),
+        instructions: 'A human-readable name for this flag.'|t('feature-flags'),
+        id: 'name',
+        name: 'name',
+        value: flag.name,
+        errors: flag.getErrors('name'),
+        required: true,
+        attribute: flag.handle ?? false,
+        showAttribute: flag.id ? true : false,
+    }) }}
+
+    {{ forms.textField({
+        label: 'Handle'|t('feature-flags'),
+        instructions: 'Used in templates and APIs.'|t('feature-flags'),
+        class: 'code',
+        id: 'handle',
+        name: 'handle',
+        value: flag.handle,
+        errors: flag.getErrors('handle'),
+        required: true,
+        attribute: flag.handle ?? false,
+        showAttribute: flag.id ? true : false,
+    }) }}
+
+    {% if not flag.id %}
+    {% js %}
+    (function() {
+        const name = document.getElementById('name');
+        const handle = document.getElementById('handle');
+        let manualHandle = false;
+        handle.addEventListener('input', function() { manualHandle = true; });
+        name.addEventListener('input', function() {
+            if (manualHandle) return;
+            let h = this.value.toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^[^a-z]+/, '')
+                .replace(/-+$/, '');
+            handle.value = h;
+        });
+    })();
+    {% endjs %}
+    {% endif %}
+
+    {{ forms.textareaField({
+        label: 'Description'|t('feature-flags'),
+        instructions: 'Human-readable description of what this flag controls.'|t('feature-flags'),
+        id: 'description',
+        name: 'description',
+        value: flag.description,
+        errors: flag.getErrors('description'),
+    }) }}
+
+    {{ forms.selectField({
+        label: 'Type'|t('feature-flags'),
+        id: 'flagType',
+        name: 'flagType',
+        value: flag.flagType,
+        options: flagTypes,
+        errors: flag.getErrors('flagType'),
+    }) }}
+
+    {{ forms.dateTimeField({
+        label: 'Expires At'|t('feature-flags'),
+        instructions: 'Optional. Flag returns false after this date.'|t('feature-flags'),
+        id: 'expiresAt',
+        name: 'expiresAt',
+        value: flag.expiresAt,
+        errors: flag.getErrors('expiresAt'),
+    }) }}
+
+    <hr>
+
+    <h2>{{ 'Targeting Rules'|t('feature-flags') }}</h2>
+    <p class="light">{{ 'Rules are evaluated in order. If any rule matches, the flag is enabled for that user. Leave empty for a global flag.'|t('feature-flags') }}</p>
+
+    {% set ruleErrors = [] %}
+    {% for field, errors in flag.getErrors() %}
+        {% if field starts with 'rules[' %}
+            {% for error in errors %}
+                {% set ruleErrors = ruleErrors|merge([error]) %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+    {% if ruleErrors|length %}
+        <ul class="errors">
+            {% for error in ruleErrors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <div id="rules-container">
+        {% for rule in flag.rules %}
+            {% include 'feature-flags/_components/_rule-row' with { index: loop.index0, rule: rule, ruleTypes: ruleTypes } %}
+        {% endfor %}
+    </div>
+
+    <button type="button" id="add-rule-btn" class="btn add icon">{{ 'Add Rule'|t('feature-flags') }}</button>
+
+    <hr>
+
+    <h2>{{ 'Rollout Percentage'|t('feature-flags') }}</h2>
+    <p class="light">{{ 'After targeting rules are evaluated, a percentage rollout can enable the flag for a portion of remaining users.'|t('feature-flags') }}</p>
+
+    {{ forms.textField({
+        label: 'Rollout Percentage'|t('feature-flags'),
+        instructions: 'Leave empty for a global flag. 0–100 to control percentage rollout.'|t('feature-flags'),
+        id: 'rolloutPercentage',
+        name: 'rolloutPercentage',
+        type: 'number',
+        min: 0,
+        max: 100,
+        value: flag.rolloutPercentage,
+        size: 5,
+        errors: flag.getErrors('rolloutPercentage'),
+    }) }}
+
+    {# Template for new rule rows (hidden) #}
+    <template id="rule-row-template">
+        {% include 'feature-flags/_components/_rule-row' with { index: '__INDEX__', rule: null, ruleTypes: ruleTypes } %}
+    </template>
+
+    {% js %}
+    (function() {
+        const container = document.getElementById('rules-container');
+        const addBtn = document.getElementById('add-rule-btn');
+        const template = document.getElementById('rule-row-template');
+        let ruleIndex = {{ flag.rules|length }};
+
+        addBtn.addEventListener('click', function() {
+            const html = template.innerHTML.replace(/__INDEX__/g, ruleIndex);
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            container.appendChild(div.firstElementChild);
+            ruleIndex++;
+        });
+
+        container.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete') || e.target.closest('.delete')) {
+                const row = e.target.closest('.rule-row');
+                if (row) row.remove();
+            }
+        });
+    })();
+    {% endjs %}
+{% endblock %}
+
+{% block details %}
+    {% if flag.id %}
+        <div class="meta read-only">
+            <div class="data">
+                <h5 class="heading">{{ 'Handle'|t('feature-flags') }}</h5>
+                <div class="value"><code>{{ flag.handle }}</code></div>
+            </div>
+            <div class="data">
+                <h5 class="heading">{{ 'Date Created'|t('feature-flags') }}</h5>
+                <div class="value">{{ flag.dateCreated|datetime('short') }}</div>
+            </div>
+            <div class="data">
+                <h5 class="heading">{{ 'Date Updated'|t('feature-flags') }}</h5>
+                <div class="value">{{ flag.dateUpdated|datetime('short') }}</div>
+            </div>
+            <div class="data">
+                <h5 class="heading">{{ 'Audit Log'|t('feature-flags') }}</h5>
+                <div class="value"><a href="{{ url('feature-flags/audit/' ~ flag.id) }}">{{ 'View history'|t('feature-flags') }}</a></div>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
+
