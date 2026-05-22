@@ -13,13 +13,13 @@
 {% set formActions = [
     {
         label: 'Save and continue editing'|t('app'),
-        redirect: cpUrl('feature-flags/{id}'),
+        redirect: cpUrl('feature-flags/{id}')|hash,
         shortcut: true,
         retainScroll: true,
     },
     {
         label: 'Save and add another'|t('app'),
-        redirect: cpUrl('feature-flags/new'),
+        redirect: cpUrl('feature-flags/new')|hash,
     },
 ] %}
 
