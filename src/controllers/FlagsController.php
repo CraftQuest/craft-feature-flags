@@ -51,22 +51,17 @@ class FlagsController extends Controller
             $title = Craft::t('feature-flags', 'Create Flag');
         }
 
-        $userGroups = [];
-        foreach (Craft::$app->getUserGroups()->getAllGroups() as $group) {
-            $userGroups[] = ['label' => $group->name, 'value' => $group->handle];
-        }
-
-        $flagTypes = [
-            ['label' => Craft::t('feature-flags', 'Release'), 'value' => FlagType::Release->value],
-            ['label' => Craft::t('feature-flags', 'Experiment'), 'value' => FlagType::Experiment->value],
-            ['label' => Craft::t('feature-flags', 'Ops'), 'value' => FlagType::Ops->value],
-            ['label' => Craft::t('feature-flags', 'Permission'), 'value' => FlagType::Permission->value],
-        ];
+        $flagTypes = array_map(
+            fn(FlagType $type) => [
+                'label' => Craft::t('feature-flags', ucfirst($type->value)),
+                'value' => $type->value,
+            ],
+            FlagType::cases()
+        );
 
         return $this->renderTemplate('feature-flags/flags/_edit', [
             'flag' => $flag,
             'title' => $title,
-            'userGroups' => $userGroups,
             'flagTypes' => $flagTypes,
             'ruleTypes' => FeatureFlags::getInstance()->flagService->getRuleTypes(),
         ]);
@@ -121,7 +116,7 @@ class FlagsController extends Controller
             return $this->asModelFailure($flag, Craft::t('feature-flags', 'Couldn\'t save flag.'), 'flag');
         }
 
-        return $this->asSuccess(Craft::t('feature-flags', 'Flag saved.'));
+        return $this->asModelSuccess($flag, Craft::t('feature-flags', 'Flag saved.'), 'flag');
     }
 
     public function actionToggle(): Response

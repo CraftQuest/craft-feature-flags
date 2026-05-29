@@ -4,22 +4,23 @@
 
 {% set fullPageForm = true %}
 {% set selectedSubnavItem = 'flags' %}
-{% set saveShortcut = true %}
-{% set retainScrollOnSaveShortcut = true %}
 {% set crumbs = [
     { label: 'Feature Flags'|t('feature-flags'), url: url('feature-flags') },
 ] %}
 
 {% set formActions = [
     {
+
         label: 'Save and continue editing'|t('app'),
-        redirect: cpUrl('feature-flags/{id}')|hash,
+        redirect: 'feature-flags/{id}'|hash,
         shortcut: true,
         retainScroll: true,
     },
     {
         label: 'Save and add another'|t('app'),
-        redirect: cpUrl('feature-flags/new')|hash,
+        redirect: 'feature-flags/new'|hash,
+        shortcut: true,
+        shift: true,
     },
 ] %}
 
@@ -29,7 +30,7 @@
             label: 'Delete'|t('app'),
             action: 'feature-flags/flags/delete',
             confirm: 'Are you sure you want to delete this flag?'|t('feature-flags'),
-            redirect: cpUrl('feature-flags')|hash,
+            redirect: 'feature-flags'|hash,
             destructive: true,
         },
     ]) %}
@@ -59,8 +60,6 @@
         value: flag.name,
         errors: flag.getErrors('name'),
         required: true,
-        attribute: flag.handle ?? false,
-        showAttribute: flag.id ? true : false,
     }) }}
 
     {{ forms.textField({
@@ -72,8 +71,6 @@
         value: flag.handle,
         errors: flag.getErrors('handle'),
         required: true,
-        attribute: flag.handle ?? false,
-        showAttribute: flag.id ? true : false,
     }) }}
 
     {% if not flag.id %}
