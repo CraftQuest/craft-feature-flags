@@ -1,7 +1,7 @@
 {
   "name": "craftquest/craft-feature-flags",
   "description": "Runtime feature flags for Craft CMS with targeting rules, percentage rollouts, and audit logging.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "craft-plugin",
   "license": "proprietary",
   "keywords": [
