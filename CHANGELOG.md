@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 - 2026-05-29
+### Fixed
+- Save and edit with keyboard combo fixed for Flags
+
+### Added
+- Save and add another keyboard combo for Flags
+
 ## 1.0.0 - 2026-05-15
 
 ### Added
