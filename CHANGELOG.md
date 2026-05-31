@@ -7,6 +7,7 @@
 - Sites are an explicit opt-in: a flag scoped to specific sites is off on any site you don't enable, including sites added later
 - Optional `siteId` argument on `isEnabled()` (PHP and Twig) to evaluate a flag for a specific site
 - `Flag::$siteSettings` model property
+- Rollout strategy per flag: **All visitors** (targeting rules and rollout are independent paths — the default) or **Rule-matched only** (the rollout percentage filters within the rule-matched audience)
 
 ### Changed
 - Evaluation now applies a per-site gate (after the master switch, before targeting rules) on multi-site installs. Targeting rules are evaluated only on sites where the flag is enabled

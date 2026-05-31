@@ -16,6 +16,7 @@ class Flag extends Model
     public ?string $description = null;
     public bool $enabled = false;
     public ?int $rolloutPercentage = null;
+    public string $rolloutStrategy = 'all';
     public string $flagType = 'release';
     public ?DateTime $expiresAt = null;
     public ?string $uid = null;
@@ -37,7 +38,7 @@ class Flag extends Model
 
     public function safeAttributes(): array
     {
-        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'flagType', 'expiresAt', 'rules', 'siteSettings'];
+        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'rolloutStrategy', 'flagType', 'expiresAt', 'rules', 'siteSettings'];
     }
 
     protected function defineRules(): array
@@ -60,6 +61,7 @@ class Flag extends Model
             [['description'], 'string', 'max' => 2000],
             [['enabled'], 'boolean'],
             [['rolloutPercentage'], 'integer', 'min' => 0, 'max' => 100, 'skipOnEmpty' => true],
+            [['rolloutStrategy'], 'in', 'range' => ['all', 'rule']],
             [['flagType'], 'in', 'range' => array_column(FlagType::cases(), 'value')],
             [['expiresAt'], 'safe'],
             [['rules'], function ($attribute) {

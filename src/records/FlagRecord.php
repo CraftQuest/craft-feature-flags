@@ -12,6 +12,7 @@ use craftquest\featureflags\enums\FlagType;
  * @property string|null $description
  * @property bool $enabled
  * @property int|null $rolloutPercentage
+ * @property string $rolloutStrategy
  * @property string $flagType
  * @property string|null $expiresAt
  * @property string $dateCreated
@@ -35,6 +36,7 @@ class FlagRecord extends ActiveRecord
             [['description'], 'string'],
             [['enabled'], 'boolean'],
             [['rolloutPercentage'], 'integer', 'min' => 0, 'max' => 100, 'skipOnEmpty' => true],
+            [['rolloutStrategy'], 'in', 'range' => ['all', 'rule']],
             [['flagType'], 'in', 'range' => array_column(FlagType::cases(), 'value')],
             [['expiresAt'], 'datetime', 'format' => 'php:Y-m-d H:i:s'],
         ];

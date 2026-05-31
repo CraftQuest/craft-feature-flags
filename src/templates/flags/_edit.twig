@@ -192,7 +192,19 @@
     <hr>
 
     <h2>{{ 'Rollout Percentage'|t('feature-flags') }}</h2>
-    <p class="light">{{ 'After targeting rules are evaluated, a percentage rollout can enable the flag for a portion of remaining users.'|t('feature-flags') }}</p>
+
+    {{ forms.selectField({
+        label: 'Rollout Strategy'|t('feature-flags'),
+        instructions: 'Controls how targeting rules and the rollout percentage interact.'|t('feature-flags'),
+        id: 'rolloutStrategy',
+        name: 'rolloutStrategy',
+        value: flag.rolloutStrategy ?? 'all',
+        options: [
+            { label: 'All visitors — rules and rollout are independent paths'|t('feature-flags'), value: 'all' },
+            { label: 'Rule-matched only — rollout percentage filters the targeted group'|t('feature-flags'), value: 'rule' },
+        ],
+        errors: flag.getErrors('rolloutStrategy'),
+    }) }}
 
     {{ forms.textField({
         label: 'Rollout Percentage'|t('feature-flags'),

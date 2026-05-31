@@ -152,6 +152,7 @@ class FlagService extends Component
             $record->description = $flag->description;
             $record->enabled = $flag->enabled;
             $record->rolloutPercentage = $flag->rolloutPercentage;
+            $record->rolloutStrategy = $flag->rolloutStrategy;
             $record->flagType = $flag->flagType;
             $record->expiresAt = Db::prepareDateForDb($flag->expiresAt);
 
@@ -211,6 +212,7 @@ class FlagService extends Component
             'handle' => $flag->handle,
             'enabled' => $flag->enabled,
             'rolloutPercentage' => $flag->rolloutPercentage,
+            'rolloutStrategy' => $flag->rolloutStrategy,
             'rulesCount' => count($flag->rules),
             'sitesCount' => is_array($flag->siteSettings) ? count($flag->siteSettings) : 0,
         ]);
@@ -318,6 +320,7 @@ class FlagService extends Component
         $flag->description = $record->description;
         $flag->enabled = (bool)$record->enabled;
         $flag->rolloutPercentage = $record->rolloutPercentage !== null ? (int)$record->rolloutPercentage : null;
+        $flag->rolloutStrategy = $record->rolloutStrategy ?? 'all';
         $flag->flagType = $record->flagType;
         $flag->expiresAt = DateTimeHelper::toDateTime($record->expiresAt) ?: null;
         $flag->uid = $record->uid;

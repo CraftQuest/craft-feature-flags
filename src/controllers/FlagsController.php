@@ -92,6 +92,7 @@ class FlagsController extends Controller
         $flag->enabled = (bool)$request->getBodyParam('enabled');
         $rollout = $request->getBodyParam('rolloutPercentage');
         $flag->rolloutPercentage = ($rollout !== null && $rollout !== '') ? (int)$rollout : null;
+        $flag->rolloutStrategy = $request->getBodyParam('rolloutStrategy', 'all');
         $flag->flagType = $request->getBodyParam('flagType', 'release');
         $flag->expiresAt = DateTimeHelper::toDateTime($request->getBodyParam('expiresAt')) ?: null;
 

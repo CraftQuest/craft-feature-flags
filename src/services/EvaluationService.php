@@ -11,6 +11,7 @@ use craft\helpers\StringHelper;
 use craftquest\featureflags\FeatureFlags;
 use craftquest\featureflags\events\EvaluateRuleEvent;
 use craftquest\featureflags\models\Flag;
+use craftquest\featureflags\models\Rule;
 
 class EvaluationService extends Component
 {
@@ -93,6 +94,45 @@ class EvaluationService extends Component
         }
 
         return ($siteSettings[$resolvedSiteId] ?? false) !== true;
+    }
+
+    /**
+     * Final enable decision once rule-matching and bucketing are known.
+     *
+     * Pure logic with no Craft dependencies so it can be unit tested directly.
+     *
+     * @param string $strategy 'all' (targeting rules and rollout are independent paths) or
+     *                         'rule' (rollout percentage filters the rule-matched group).
+     * @param bool $ruleMatched Whether a targeting rule matched. In 'rule' mode a flag with no
+     *                          rules counts as matched (the rollout applies to everyone).
+     * @param int|null $rolloutPercentage The flag's rollout percentage (null = no rollout configured).
+     * @param bool $inBucket Whether the rollout bucket check passed (bucket < percentage).
+     *                       Only consulted when a rollout actually applies.
+     * @return bool True if the flag should be enabled.
+     */
+    public static function rolloutDecision(string $strategy, bool $ruleMatched, ?int $rolloutPercentage, bool $inBucket): bool
+    {
+        if ($strategy === 'rule') {
+            if (!$ruleMatched) {
+                return false;
+            }
+            if ($rolloutPercentage === null) {
+                return true;
+            }
+            if ($rolloutPercentage === 0) {
+                return false;
+            }
+            return $inBucket;
+        }
+
+        // 'all': a matching rule enables outright; otherwise the rollout (if any) decides.
+        if ($ruleMatched) {
+            return true;
+        }
+        if ($rolloutPercentage !== null && $rolloutPercentage > 0) {
+            return $inBucket;
+        }
+        return false;
     }
 
     private function getAnonymousVisitorId(): ?string
@@ -186,59 +226,96 @@ class EvaluationService extends Component
             return true;
         }
 
+        if ($flag->rolloutStrategy === 'rule') {
+            return $this->evaluateRuleStrategy($flag, $handle, $user, $bucketKey);
+        }
+
+        return $this->evaluateAllStrategy($flag, $handle, $user, $bucketKey);
+    }
+
+    /**
+     * 'all' strategy: a matching targeting rule enables the flag outright; otherwise the
+     * percentage rollout (if any) decides for the remaining audience.
+     */
+    private function evaluateAllStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey): bool
+    {
         foreach ($flag->rules as $rule) {
-            switch ($rule->ruleType) {
-                case 'environment':
-                    if ($this->matchesEnvironment($rule->ruleValue)) {
-                        return true;
-                    }
-                    break;
-
-                case 'user':
-                    if ($user && (string)$user->id === $rule->ruleValue) {
-                        return true;
-                    }
-                    break;
-
-                case 'userGroup':
-                    if ($user && $this->userInGroup($user, $rule->ruleValue)) {
-                        return true;
-                    }
-                    break;
-
-                case 'subscriptionPlan':
-                    if ($user && $this->userOnPlan($user, $rule->ruleValue)) {
-                        return true;
-                    }
-                    break;
-
-                default:
-                    if ($this->hasEventHandlers(self::EVENT_EVALUATE_RULE)) {
-                        $event = new EvaluateRuleEvent();
-                        $event->flag = $flag;
-                        $event->rule = $rule;
-                        $event->user = $user;
-
-                        $this->trigger(self::EVENT_EVALUATE_RULE, $event);
-
-                        if ($event->handled && $event->matched) {
-                            return true;
-                        }
-                    }
-                    break;
+            if ($this->matchRule($rule, $flag, $user)) {
+                return true;
             }
         }
 
-        if ($flag->rolloutPercentage !== null && $flag->rolloutPercentage > 0) {
-            $bucketInput = $bucketKey ?? ($user ? (string)$user->id : null);
-            if ($bucketInput === null || $bucketInput === '') {
-                $bucketInput = $this->getAnonymousVisitorId();
+        $inBucket = $flag->rolloutPercentage !== null
+            && $flag->rolloutPercentage > 0
+            && $this->checkRollout($flag->rolloutPercentage, $handle, $user, $bucketKey);
+
+        return self::rolloutDecision('all', false, $flag->rolloutPercentage, $inBucket);
+    }
+
+    /**
+     * 'rule' strategy: targeting rules define the audience (no rules = everyone), then the
+     * percentage rollout filters within that audience.
+     */
+    private function evaluateRuleStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey): bool
+    {
+        $ruleMatched = empty($flag->rules);
+
+        foreach ($flag->rules as $rule) {
+            if ($this->matchRule($rule, $flag, $user)) {
+                $ruleMatched = true;
+                break;
             }
-            if ($bucketInput !== null && $bucketInput !== '') {
-                if (self::computeBucket($bucketInput, $handle) < $flag->rolloutPercentage) {
-                    return true;
+        }
+
+        if (!$ruleMatched) {
+            return false;
+        }
+
+        $inBucket = $flag->rolloutPercentage !== null
+            && $flag->rolloutPercentage > 0
+            && $this->checkRollout($flag->rolloutPercentage, $handle, $user, $bucketKey);
+
+        return self::rolloutDecision('rule', true, $flag->rolloutPercentage, $inBucket);
+    }
+
+    private function matchRule(Rule $rule, Flag $flag, ?User $user): bool
+    {
+        switch ($rule->ruleType) {
+            case 'environment':
+                return $this->matchesEnvironment($rule->ruleValue);
+
+            case 'user':
+                return $user !== null && (string)$user->id === $rule->ruleValue;
+
+            case 'userGroup':
+                return $user !== null && $this->userInGroup($user, $rule->ruleValue);
+
+            case 'subscriptionPlan':
+                return $user !== null && $this->userOnPlan($user, $rule->ruleValue);
+
+            default:
+                if ($this->hasEventHandlers(self::EVENT_EVALUATE_RULE)) {
+                    $event = new EvaluateRuleEvent();
+                    $event->flag = $flag;
+                    $event->rule = $rule;
+                    $event->user = $user;
+
+                    $this->trigger(self::EVENT_EVALUATE_RULE, $event);
+
+                    return $event->handled && $event->matched;
                 }
-            }
+                return false;
+        }
+    }
+
+    private function checkRollout(int $rolloutPercentage, string $handle, ?User $user, ?string $bucketKey): bool
+    {
+        $bucketInput = $bucketKey ?? ($user ? (string)$user->id : null);
+        if ($bucketInput === null || $bucketInput === '') {
+            $bucketInput = $this->getAnonymousVisitorId();
+        }
+        if ($bucketInput !== null && $bucketInput !== '') {
+            return self::computeBucket($bucketInput, $handle) < $rolloutPercentage;
         }
 
         return false;
