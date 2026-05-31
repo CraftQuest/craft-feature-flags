@@ -14,6 +14,9 @@
 - The per-request evaluation cache key now includes the requested site context
 - Cache version bumped (stored flag objects are refreshed on upgrade)
 
+### Fixed
+- The "Subscription Plan" rule type now appears in the flag editor when Craft Commerce is installed (it was previously always hidden because of a missing import)
+
 ### Notes
 - Existing flags and single-site installs are unaffected: a flag with no per-site settings stays enabled on all sites
 
