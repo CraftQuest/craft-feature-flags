@@ -25,9 +25,19 @@ class Flag extends Model
     /** @var Rule[] */
     public array $rules = [];
 
+    /**
+     * Per-site enabled state, keyed by site ID. Null/empty means the flag is not
+     * site-scoped and applies to all sites ("all sites" mode). A non-empty map puts
+     * the flag in "specific sites" mode: it is enabled only on sites with an explicit
+     * true value; every other site — unlisted today or added later — is off.
+     *
+     * @var array<int, bool>|null
+     */
+    public ?array $siteSettings = null;
+
     public function safeAttributes(): array
     {
-        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'flagType', 'expiresAt', 'rules'];
+        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'flagType', 'expiresAt', 'rules', 'siteSettings'];
     }
 
     protected function defineRules(): array

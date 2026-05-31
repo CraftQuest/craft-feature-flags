@@ -64,6 +64,7 @@ class FlagsController extends Controller
             'title' => $title,
             'flagTypes' => $flagTypes,
             'ruleTypes' => FeatureFlags::getInstance()->flagService->getRuleTypes(),
+            'sites' => Craft::$app->getIsMultiSite() ? Craft::$app->getSites()->getAllSites() : [],
         ]);
     }
 
@@ -93,6 +94,22 @@ class FlagsController extends Controller
         $flag->rolloutPercentage = ($rollout !== null && $rollout !== '') ? (int)$rollout : null;
         $flag->flagType = $request->getBodyParam('flagType', 'release');
         $flag->expiresAt = DateTimeHelper::toDateTime($request->getBodyParam('expiresAt')) ?: null;
+
+        // Per-site scope is only posted on multi-site installs.
+        $siteScope = $request->getBodyParam('siteScope');
+        if ($siteScope !== null) {
+            if ($siteScope === 'specific') {
+                $posted = (array)$request->getBodyParam('siteSettings', []);
+                $siteSettings = [];
+                foreach (Craft::$app->getSites()->getAllSites() as $site) {
+                    $siteSettings[$site->id] = !empty($posted[$site->id]);
+                }
+                $flag->siteSettings = $siteSettings;
+            } else {
+                // "All sites": no per-site rows.
+                $flag->siteSettings = null;
+            }
+        }
 
         $ruleTypes = (array)$request->getBodyParam('ruleType', []);
         $ruleValues = (array)$request->getBodyParam('ruleValue', []);

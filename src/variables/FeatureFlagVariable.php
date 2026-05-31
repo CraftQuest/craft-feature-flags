@@ -7,9 +7,9 @@ use craftquest\featureflags\FeatureFlags;
 
 class FeatureFlagVariable
 {
-    public function isEnabled(string $handle, ?string $bucketKey = null): bool
+    public function isEnabled(string $handle, ?string $bucketKey = null, ?int $siteId = null): bool
     {
-        return FeatureFlags::getInstance()->evaluationService->isEnabled($handle, null, $bucketKey);
+        return FeatureFlags::getInstance()->evaluationService->isEnabled($handle, null, $bucketKey, $siteId);
     }
 
     /**

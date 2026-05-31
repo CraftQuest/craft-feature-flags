@@ -21,19 +21,26 @@ class EvaluationService extends Component
     private array $userPlansCache = [];
     private ?string $anonymousVisitorId = null;
 
-    public function isEnabled(string $handle, ?User $user = null, ?string $bucketKey = null): bool
+    public function isEnabled(string $handle, ?User $user = null, ?string $bucketKey = null, ?int $siteId = null): bool
     {
         if ($user === null && Craft::$app instanceof \craft\web\Application) {
             $user = Craft::$app->getUser()->getIdentity();
         }
 
-        $cacheKey = $handle . ':' . ($user?->id ?? 0) . ':' . ($bucketKey ?? '');
+        // Key the request cache by the requested site context. An explicit siteId is
+        // kept distinct from the resolved current-site id so that, e.g., an invalid
+        // explicit id can't collide with the no-site (console) bucket.
+        $siteKey = $siteId !== null
+            ? 's' . $siteId
+            : 'c' . ($this->resolveCurrentSite(null)?->id ?? 0);
+
+        $cacheKey = $handle . ':' . ($user?->id ?? 0) . ':' . ($bucketKey ?? '') . ':' . $siteKey;
 
         if (isset($this->requestCache[$cacheKey])) {
             return $this->requestCache[$cacheKey];
         }
 
-        $result = $this->evaluate($handle, $user, $bucketKey);
+        $result = $this->evaluate($handle, $user, $bucketKey, $siteId);
         $this->requestCache[$cacheKey] = $result;
 
         return $result;
@@ -51,6 +58,41 @@ class EvaluationService extends Component
     public static function computeBucket(string $bucketInput, string $handle): int
     {
         return abs(crc32($bucketInput . ':' . $handle)) % 100;
+    }
+
+    /**
+     * Decides whether the per-site gate blocks a flag for a resolved site context.
+     *
+     * Pure logic with no Craft dependencies so it can be unit tested directly.
+     *
+     * @param bool $isMultiSite Whether the install has more than one site (gate is off on single-site).
+     * @param int|null $resolvedSiteId The resolved site id, or null when no site could be resolved.
+     * @param array<int, bool> $siteSettings Per-site enabled map (siteId => bool). Empty means "all sites";
+     *                                       non-empty puts the flag in "specific sites" mode.
+     * @return bool True if the flag should be gated OFF.
+     */
+    public static function isGatedOff(
+        bool $isMultiSite,
+        ?int $resolvedSiteId,
+        array $siteSettings,
+    ): bool {
+        if (!$isMultiSite) {
+            return false;
+        }
+
+        // "All sites" mode: a flag with no per-site settings applies everywhere.
+        if (empty($siteSettings)) {
+            return false;
+        }
+
+        // "Specific sites" mode: enabled only on sites that are explicitly turned on.
+        // Unlisted sites, sites added later, and unresolvable sites (console/queue without
+        // a valid siteId) are gated off — sites are an explicit opt-in.
+        if ($resolvedSiteId === null) {
+            return true;
+        }
+
+        return ($siteSettings[$resolvedSiteId] ?? false) !== true;
     }
 
     private function getAnonymousVisitorId(): ?string
@@ -93,7 +135,26 @@ class EvaluationService extends Component
         return $visitorId;
     }
 
-    private function evaluate(string $handle, ?User $user, ?string $bucketKey = null): bool
+    /**
+     * Resolves the site to evaluate against: an explicit site id if given, otherwise the
+     * current site in a web request, or null when there is no site context (console/queue).
+     */
+    private function resolveCurrentSite(?int $siteId = null): ?\craft\models\Site
+    {
+        $sites = Craft::$app->getSites();
+
+        if ($siteId !== null) {
+            return $sites->getSiteById($siteId);
+        }
+
+        if (Craft::$app instanceof \craft\web\Application) {
+            return $sites->getCurrentSite();
+        }
+
+        return null;
+    }
+
+    private function evaluate(string $handle, ?User $user, ?string $bucketKey = null, ?int $siteId = null): bool
     {
         $flag = $this->getFlagFromCache($handle);
 
@@ -102,6 +163,17 @@ class EvaluationService extends Component
         }
 
         if (!$flag->enabled) {
+            return false;
+        }
+
+        // Per-site scope gate. A flag with no per-site settings applies to all sites.
+        // A flag scoped to specific sites is enabled only on the sites explicitly turned
+        // on; unlisted sites, sites added later, and unresolvable sites (console/queue, or
+        // an invalid explicit siteId) are gated off — pass a valid siteId for a reliable
+        // per-site answer outside web requests.
+        $isMultiSite = Craft::$app->getIsMultiSite();
+        $site = $isMultiSite ? $this->resolveCurrentSite($siteId) : null;
+        if (self::isGatedOff($isMultiSite, $site?->id, $flag->siteSettings ?? [])) {
             return false;
         }
 

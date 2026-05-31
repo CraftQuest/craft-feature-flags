@@ -13,12 +13,14 @@ use craftquest\featureflags\events\RegisterRuleTypesEvent;
 use craftquest\featureflags\models\Flag;
 use craftquest\featureflags\models\Rule;
 use craftquest\featureflags\records\AuditRecord;
+use craft\commerce\elements\Subscription;
 use craftquest\featureflags\records\FlagRecord;
+use craftquest\featureflags\records\FlagSiteRecord;
 use craftquest\featureflags\records\RuleRecord;
 
 class FlagService extends Component
 {
-    public const CACHE_VERSION = 1;
+    public const CACHE_VERSION = 3;
 
     private ?array $ruleTypesCache = null;
 
@@ -69,14 +71,14 @@ class FlagService extends Component
      */
     public function getAllFlags(): array
     {
-        $records = FlagRecord::find()->with('rules')->orderBy('name')->all();
+        $records = FlagRecord::find()->with(['rules', 'flagSites'])->orderBy('name')->all();
 
         return array_map(fn(FlagRecord $record) => $this->populateFlag($record), $records);
     }
 
     public function getFlagById(int $id): ?Flag
     {
-        $record = FlagRecord::find()->where(['id' => $id])->with('rules')->one();
+        $record = FlagRecord::find()->where(['id' => $id])->with(['rules', 'flagSites'])->one();
 
         return $record ? $this->populateFlag($record) : null;
     }
@@ -90,7 +92,7 @@ class FlagService extends Component
         $records = FlagRecord::find()
             ->where(['not', ['expiresAt' => null]])
             ->andWhere(['<', 'expiresAt', $now->format('Y-m-d H:i:s')])
-            ->with('rules')
+            ->with(['rules', 'flagSites'])
             ->all();
 
         return array_map(fn(FlagRecord $r) => $this->populateFlag($r), $records);
@@ -98,7 +100,7 @@ class FlagService extends Component
 
     public function getFlagByHandle(string $handle): ?Flag
     {
-        $record = FlagRecord::find()->where(['handle' => $handle])->with('rules')->one();
+        $record = FlagRecord::find()->where(['handle' => $handle])->with(['rules', 'flagSites'])->one();
 
         return $record ? $this->populateFlag($record) : null;
     }
@@ -180,6 +182,23 @@ class FlagService extends Component
                 $rule->flagId = $flag->id;
             }
 
+            FlagSiteRecord::deleteAll(['flagId' => $flag->id]);
+
+            if (is_array($flag->siteSettings)) {
+                foreach ($flag->siteSettings as $siteId => $enabled) {
+                    $flagSiteRecord = new FlagSiteRecord();
+                    $flagSiteRecord->flagId = $flag->id;
+                    $flagSiteRecord->siteId = (int)$siteId;
+                    $flagSiteRecord->enabled = (bool)$enabled;
+
+                    if (!$flagSiteRecord->save()) {
+                        $transaction->rollBack();
+                        Craft::error('Failed to save flag site record: ' . Json::encode($flagSiteRecord->errors), __METHOD__);
+                        return false;
+                    }
+                }
+            }
+
             $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
@@ -193,6 +212,7 @@ class FlagService extends Component
             'enabled' => $flag->enabled,
             'rolloutPercentage' => $flag->rolloutPercentage,
             'rulesCount' => count($flag->rules),
+            'sitesCount' => is_array($flag->siteSettings) ? count($flag->siteSettings) : 0,
         ]);
 
         $this->invalidateCache($flag->handle);
@@ -312,6 +332,12 @@ class FlagService extends Component
             $rule->ruleValue = $ruleRecord->ruleValue;
             return $rule;
         }, $record->rules ?? []);
+
+        $siteSettings = [];
+        foreach ($record->flagSites ?? [] as $flagSite) {
+            $siteSettings[(int)$flagSite->siteId] = (bool)$flagSite->enabled;
+        }
+        $flag->siteSettings = $siteSettings ?: null;
 
         return $flag;
     }

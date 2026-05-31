@@ -44,4 +44,9 @@ class FlagRecord extends ActiveRecord
     {
         return $this->hasMany(RuleRecord::class, ['flagId' => 'id']);
     }
+
+    public function getFlagSites(): \yii\db\ActiveQueryInterface
+    {
+        return $this->hasMany(FlagSiteRecord::class, ['flagId' => 'id']);
+    }
 }

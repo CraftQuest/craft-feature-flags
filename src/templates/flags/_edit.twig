@@ -119,6 +119,47 @@
         errors: flag.getErrors('expiresAt'),
     }) }}
 
+    {% if craft.app.isMultiSite %}
+        <hr>
+
+        <h2>{{ 'Sites'|t('feature-flags') }}</h2>
+        <p class="light">{{ 'Choose where this flag applies. With “Only specific sites”, the flag is enabled only on the sites you turn on — sites you don’t list, including any added later, stay off.'|t('feature-flags') }}</p>
+
+        {% set scoped = flag.siteSettings is not empty %}
+
+        {{ forms.selectField({
+            label: 'Applies to'|t('feature-flags'),
+            id: 'siteScope',
+            name: 'siteScope',
+            value: scoped ? 'specific' : 'all',
+            options: [
+                { label: 'All sites'|t('feature-flags'), value: 'all' },
+                { label: 'Only specific sites'|t('feature-flags'), value: 'specific' },
+            ],
+        }) }}
+
+        <div id="ff-specific-sites"{{ scoped ? '' : ' class="hidden"' }}>
+            {% for site in sites %}
+                {{ forms.lightswitchField({
+                    label: site.name,
+                    instructions: site.handle,
+                    name: 'siteSettings[' ~ site.id ~ ']',
+                    on: scoped ? (flag.siteSettings[site.id] ?? false) : false,
+                }) }}
+            {% endfor %}
+        </div>
+
+        {% js %}
+        (function() {
+            const scope = document.getElementById('siteScope');
+            const panel = document.getElementById('ff-specific-sites');
+            function sync() { panel.classList.toggle('hidden', scope.value !== 'specific'); }
+            scope.addEventListener('change', sync);
+            sync();
+        })();
+        {% endjs %}
+    {% endif %}
+
     <hr>
 
     <h2>{{ 'Targeting Rules'|t('feature-flags') }}</h2>

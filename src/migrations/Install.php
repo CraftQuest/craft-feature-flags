@@ -6,6 +6,7 @@ use Craft;
 use craft\db\Migration;
 use craftquest\featureflags\records\AuditRecord;
 use craftquest\featureflags\records\FlagRecord;
+use craftquest\featureflags\records\FlagSiteRecord;
 use craftquest\featureflags\records\RuleRecord;
 
 class Install extends Migration
@@ -13,6 +14,7 @@ class Install extends Migration
     public function safeUp(): bool
     {
         $this->createFlagsTable();
+        $this->createFlagSitesTable();
         $this->createRulesTable();
         $this->createAuditTable();
 
@@ -25,6 +27,7 @@ class Install extends Migration
     {
         $this->dropTableIfExists(AuditRecord::tableName());
         $this->dropTableIfExists(RuleRecord::tableName());
+        $this->dropTableIfExists(FlagSiteRecord::tableName());
         $this->dropTableIfExists(FlagRecord::tableName());
 
         return true;
@@ -55,6 +58,31 @@ class Install extends Migration
         $this->createIndex(null, $table, 'handle', true);
         $this->createIndex(null, $table, 'enabled', false);
         $this->createIndex(null, $table, 'flagType', false);
+    }
+
+    private function createFlagSitesTable(): void
+    {
+        $table = FlagSiteRecord::tableName();
+
+        if ($this->db->tableExists($table)) {
+            return;
+        }
+
+        $this->createTable($table, [
+            'id' => $this->primaryKey(),
+            'flagId' => $this->integer()->notNull(),
+            'siteId' => $this->integer()->notNull(),
+            'enabled' => $this->boolean()->notNull()->defaultValue(true),
+            'dateCreated' => $this->dateTime()->notNull(),
+            'dateUpdated' => $this->dateTime()->notNull(),
+            'uid' => $this->uid(),
+        ]);
+
+        $this->createIndex(null, $table, ['flagId', 'siteId'], true);
+        $this->createIndex(null, $table, 'siteId', false);
+
+        $this->addForeignKey(null, $table, 'flagId', FlagRecord::tableName(), 'id', 'CASCADE');
+        $this->addForeignKey(null, $table, 'siteId', '{{%sites}}', 'id', 'CASCADE');
     }
 
     private function createRulesTable(): void

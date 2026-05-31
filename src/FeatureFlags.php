@@ -35,7 +35,7 @@ class FeatureFlags extends Plugin
      */
     public const EVENT_REGISTER_RULE_TYPES = 'registerRuleTypes';
 
-    public string $schemaVersion = '1.0.0';
+    public string $schemaVersion = '1.1.0';
     public bool $hasCpSection = true;
     public bool $hasCpSettings = true;
 
