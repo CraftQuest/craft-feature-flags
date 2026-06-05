@@ -1,9 +1,8 @@
 # Changelog
 
-## 1.1.0 - Unreleased
+## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))
-- New "Sites" section in the flag editor (shown only on multi-site installs) with an "All sites / Only specific sites" choice and a per-site switch
 - Sites are an explicit opt-in: a flag scoped to specific sites is off on any site you don't enable, including sites added later
 - Optional `siteId` argument on `isEnabled()` (PHP and Twig) to evaluate a flag for a specific site
 - `Flag::$siteSettings` model property
@@ -17,9 +16,6 @@
 
 ### Fixed
 - The "Subscription Plan" rule type now appears in the flag editor when Craft Commerce is installed (it was previously always hidden because of a missing import)
-
-### Notes
-- Existing flags and single-site installs are unaffected: a flag with no per-site settings stays enabled on all sites
 
 ## 1.0.1 - 2026-05-29
 ### Fixed
