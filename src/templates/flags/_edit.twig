@@ -269,6 +269,30 @@
                 <div class="value"><a href="{{ url('feature-flags/audit/' ~ flag.id) }}">{{ 'View history'|t('feature-flags') }}</a></div>
             </div>
         </div>
+
+        <h2>{{ 'Usage'|t('feature-flags') }}</h2>
+        <div class="meta">
+            {{ forms.copytextField({
+                label: 'Twig'|t('feature-flags'),
+                id: 'ff-snippet-twig',
+                class: 'code',
+                value: "{% if craft.featureFlags.isEnabled('" ~ flag.handle ~ "') %}",
+            }) }}
+
+            {{ forms.copytextField({
+                label: 'PHP'|t('feature-flags'),
+                id: 'ff-snippet-php',
+                class: 'code',
+                value: "FeatureFlags::getInstance()->evaluationService->isEnabled('" ~ flag.handle ~ "')",
+            }) }}
+
+            {{ forms.copytextField({
+                label: 'Console'|t('feature-flags'),
+                id: 'ff-snippet-console',
+                class: 'code',
+                value: 'php craft feature-flags/flags/enable ' ~ flag.handle,
+            }) }}
+        </div>
     {% endif %}
 {% endblock %}
 
