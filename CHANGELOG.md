@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+### Added
+- `FlagService` now fires `EVENT_BEFORE_SAVE_FLAG` (cancelable), `EVENT_AFTER_SAVE_FLAG`, `EVENT_AFTER_TOGGLE_FLAG`, and `EVENT_AFTER_DELETE_FLAG`, each carrying a `FlagEvent` with the flag model, so modules can purge static caches or react to flag changes ([#6](https://github.com/CraftQuest/craft-feature-flags/issues/6))
+
 ## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))
