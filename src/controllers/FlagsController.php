@@ -94,6 +94,7 @@ class FlagsController extends Controller
         $flag->rolloutPercentage = ($rollout !== null && $rollout !== '') ? (int)$rollout : null;
         $flag->rolloutStrategy = $request->getBodyParam('rolloutStrategy', 'all');
         $flag->flagType = $request->getBodyParam('flagType', 'release');
+        $flag->startsAt = DateTimeHelper::toDateTime($request->getBodyParam('startsAt')) ?: null;
         $flag->expiresAt = DateTimeHelper::toDateTime($request->getBodyParam('expiresAt')) ?: null;
 
         // Per-site scope is only posted on multi-site installs.

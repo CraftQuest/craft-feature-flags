@@ -111,6 +111,15 @@
     }) }}
 
     {{ forms.dateTimeField({
+        label: 'Starts At'|t('feature-flags'),
+        instructions: 'Optional. Flag returns false before this date.'|t('feature-flags'),
+        id: 'startsAt',
+        name: 'startsAt',
+        value: flag.startsAt,
+        errors: flag.getErrors('startsAt'),
+    }) }}
+
+    {{ forms.dateTimeField({
         label: 'Expires At'|t('feature-flags'),
         instructions: 'Optional. Flag returns false after this date.'|t('feature-flags'),
         id: 'expiresAt',

@@ -50,6 +50,7 @@ class FlagsController extends Controller
                 $flag->enabled ? Craft::t('feature-flags', 'Yes') : Craft::t('feature-flags', 'No'),
                 $flag->rolloutPercentage !== null ? $flag->rolloutPercentage . '%' : '—',
                 count($flag->rules),
+                $flag->startsAt ? $flag->startsAt->format('Y-m-d H:i') : '—',
                 $flag->expiresAt ? $flag->expiresAt->format('Y-m-d H:i') : '—',
             ];
         }
@@ -63,6 +64,7 @@ class FlagsController extends Controller
                 Craft::t('feature-flags', 'Enabled'),
                 Craft::t('feature-flags', 'Rollout %'),
                 Craft::t('feature-flags', 'Rules'),
+                Craft::t('feature-flags', 'Starts'),
                 Craft::t('feature-flags', 'Expires'),
             ],
             $rows,
@@ -111,6 +113,9 @@ class FlagsController extends Controller
 
         $this->stdout(Craft::t('feature-flags', 'Rollout Strategy') . ': ', Console::BOLD);
         $this->stdout($flag->rolloutStrategy . PHP_EOL);
+
+        $this->stdout(Craft::t('feature-flags', 'Starts At') . ': ', Console::BOLD);
+        $this->stdout(($flag->startsAt ? $flag->startsAt->format('Y-m-d H:i:s') : '—') . PHP_EOL);
 
         $this->stdout(Craft::t('feature-flags', 'Expires At') . ': ', Console::BOLD);
         $this->stdout(($flag->expiresAt ? $flag->expiresAt->format('Y-m-d H:i:s') : '—') . PHP_EOL);

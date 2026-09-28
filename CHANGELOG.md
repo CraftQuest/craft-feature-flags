@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+### Added
+- Optional **start date** per flag. A flag evaluates as off before its start date, pairing with the existing expiration date to define a full active window. Both are optional and independent ([#2](https://github.com/CraftQuest/craft-feature-flags/issues/2))
+- `Flag::$startsAt` model property; `EvaluationService::isOutsideSchedule()` static helper
+
+### Changed
+- Cache version bumped (stored flag objects are refreshed on upgrade)
+- Validation now rejects an expiration date that is not after the start date
+
 ## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))

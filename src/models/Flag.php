@@ -18,6 +18,7 @@ class Flag extends Model
     public ?int $rolloutPercentage = null;
     public string $rolloutStrategy = 'all';
     public string $flagType = 'release';
+    public ?DateTime $startsAt = null;
     public ?DateTime $expiresAt = null;
     public ?string $uid = null;
     public ?DateTime $dateCreated = null;
@@ -38,7 +39,7 @@ class Flag extends Model
 
     public function safeAttributes(): array
     {
-        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'rolloutStrategy', 'flagType', 'expiresAt', 'rules', 'siteSettings'];
+        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'rolloutStrategy', 'flagType', 'startsAt', 'expiresAt', 'rules', 'siteSettings'];
     }
 
     protected function defineRules(): array
@@ -63,7 +64,12 @@ class Flag extends Model
             [['rolloutPercentage'], 'integer', 'min' => 0, 'max' => 100, 'skipOnEmpty' => true],
             [['rolloutStrategy'], 'in', 'range' => ['all', 'rule']],
             [['flagType'], 'in', 'range' => array_column(FlagType::cases(), 'value')],
-            [['expiresAt'], 'safe'],
+            [['startsAt', 'expiresAt'], 'safe'],
+            [['expiresAt'], function ($attribute) {
+                if ($this->startsAt !== null && $this->expiresAt !== null && $this->expiresAt <= $this->startsAt) {
+                    $this->addError($attribute, Craft::t('feature-flags', 'The expiration date must be after the start date.'));
+                }
+            }],
             [['rules'], function ($attribute) {
                 $allowedRuleTypes = FeatureFlags::getInstance()->flagService->getRuleTypeValues();
                 foreach ($this->$attribute as $i => $rule) {

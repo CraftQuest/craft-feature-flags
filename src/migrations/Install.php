@@ -50,6 +50,7 @@ class Install extends Migration
             'rolloutPercentage' => $this->smallInteger()->defaultValue(null),
             'rolloutStrategy' => $this->string(10)->notNull()->defaultValue('all'),
             'flagType' => $this->string(20)->notNull()->defaultValue('release'),
+            'startsAt' => $this->dateTime(),
             'expiresAt' => $this->dateTime(),
             'dateCreated' => $this->dateTime()->notNull(),
             'dateUpdated' => $this->dateTime()->notNull(),

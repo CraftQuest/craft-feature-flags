@@ -35,6 +35,10 @@ return [
     'Type' => 'Type',
     'Rollout Percentage' => 'Rollout Percentage',
     'Expires At' => 'Expires At',
+    'Starts At' => 'Starts At',
+    'Starts' => 'Starts',
+    'Optional. Flag returns false before this date.' => 'Optional. Flag returns false before this date.',
+    'The expiration date must be after the start date.' => 'The expiration date must be after the start date.',
     'Date Created' => 'Date Created',
     'Date Updated' => 'Date Updated',
 

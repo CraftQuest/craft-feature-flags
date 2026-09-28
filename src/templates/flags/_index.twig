@@ -23,6 +23,7 @@
                     <th>{{ 'Status'|t('feature-flags') }}</th>
                     <th>{{ 'Rollout %'|t('feature-flags') }}</th>
                     <th>{{ 'Rules'|t('feature-flags') }}</th>
+                    <th>{{ 'Starts'|t('feature-flags') }}</th>
                     <th>{{ 'Expires'|t('feature-flags') }}</th>
                     <th></th>
                 </tr>
@@ -46,6 +47,13 @@
                         </td>
                         <td>{{ flag.rolloutPercentage is not null ? flag.rolloutPercentage ~ '%' : '—' }}</td>
                         <td>{{ flag.rules|length }}</td>
+                        <td>
+                            {% if flag.startsAt %}
+                                {{ flag.startsAt|datetime('short') }}
+                            {% else %}
+                                <span class="light">&mdash;</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if flag.expiresAt %}
                                 {{ flag.expiresAt|datetime('short') }}

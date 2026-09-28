@@ -62,6 +62,27 @@ class EvaluationService extends Component
     }
 
     /**
+     * Whether `$now` falls outside a flag's optional schedule window.
+     *
+     * Pure logic with no Craft dependencies so it can be unit tested directly.
+     * Both bounds are optional and independent: a flag is off before `$startsAt`
+     * (if set) and off once `$expiresAt` (if set) has passed. A flag with neither
+     * is never outside the window.
+     */
+    public static function isOutsideSchedule(?\DateTimeInterface $startsAt, ?\DateTimeInterface $expiresAt, \DateTimeInterface $now): bool
+    {
+        if ($startsAt !== null && $now < $startsAt) {
+            return true;
+        }
+
+        if ($expiresAt !== null && $expiresAt < $now) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Decides whether the per-site gate blocks a flag for a resolved site context.
      *
      * Pure logic with no Craft dependencies so it can be unit tested directly.
@@ -217,7 +238,8 @@ class EvaluationService extends Component
             return false;
         }
 
-        if ($flag->expiresAt !== null && DateTimeHelper::isInThePast($flag->expiresAt)) {
+        // Schedule window: off before the start date, off after the expiration date.
+        if (self::isOutsideSchedule($flag->startsAt, $flag->expiresAt, DateTimeHelper::now())) {
             return false;
         }
 
