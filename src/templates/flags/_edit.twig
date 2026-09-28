@@ -136,6 +136,7 @@
                 { label: 'All sites'|t('feature-flags'), value: 'all' },
                 { label: 'Only specific sites'|t('feature-flags'), value: 'specific' },
             ],
+            errors: flag.getErrors('siteSettings'),
         }) }}
 
         <div id="ff-specific-sites"{{ scoped ? '' : ' class="hidden"' }}>

@@ -86,6 +86,7 @@ return [
     // Errors
     'Flag not found' => 'Flag not found',
     'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.' => 'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.',
+    'Select at least one site, or choose “All sites”.' => 'Select at least one site, or choose “All sites”.',
     'Unknown rule type: {type}.' => 'Unknown rule type: {type}.',
 
     // Console commands

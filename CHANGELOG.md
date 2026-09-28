@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+### Fixed
+- On multi-site installs, choosing “Only specific sites” without switching on any site now fails validation instead of silently disabling the flag everywhere ([#20](https://github.com/CraftQuest/craft-feature-flags/issues/20))
+
 ## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))

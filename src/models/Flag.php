@@ -64,6 +64,14 @@ class Flag extends Model
             [['rolloutStrategy'], 'in', 'range' => ['all', 'rule']],
             [['flagType'], 'in', 'range' => array_column(FlagType::cases(), 'value')],
             [['expiresAt'], 'safe'],
+            [['siteSettings'], function ($attribute) {
+                // "Specific sites" mode with every site switched off would gate the flag
+                // off everywhere with no indication in the CP. Require at least one site.
+                $settings = $this->$attribute;
+                if (is_array($settings) && $settings !== [] && !in_array(true, $settings, true)) {
+                    $this->addError($attribute, Craft::t('feature-flags', 'Select at least one site, or choose “All sites”.'));
+                }
+            }],
             [['rules'], function ($attribute) {
                 $allowedRuleTypes = FeatureFlags::getInstance()->flagService->getRuleTypeValues();
                 foreach ($this->$attribute as $i => $rule) {
