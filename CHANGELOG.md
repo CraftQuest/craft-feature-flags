@@ -4,6 +4,7 @@
 ### Added
 - When `devMode` is on, checking a flag handle that doesn't exist now logs a warning so typos aren't mistaken for disabled flags ([#14](https://github.com/CraftQuest/craft-feature-flags/issues/14))
 - Copyable Twig, PHP, and console usage snippets in the flag edit page sidebar ([#15](https://github.com/CraftQuest/craft-feature-flags/issues/15))
+- `FlagService` now fires `EVENT_BEFORE_SAVE_FLAG` (cancelable), `EVENT_AFTER_SAVE_FLAG`, `EVENT_AFTER_TOGGLE_FLAG`, and `EVENT_AFTER_DELETE_FLAG`, each carrying a `FlagEvent` with the flag model, so modules can purge static caches or react to flag changes ([#6](https://github.com/CraftQuest/craft-feature-flags/issues/6))
 
 ## 1.1.0 - 2026-06-05
 ### Added
