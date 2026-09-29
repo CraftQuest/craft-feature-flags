@@ -14,6 +14,10 @@ return [
     // Permissions
     'View feature flags' => 'View feature flags',
     'Manage feature flags' => 'Manage feature flags',
+    'Toggle feature flags on and off' => 'Toggle feature flags on and off',
+    'Flip the master switch from the flag list without editing rules, rollout, or sites.' => 'Flip the master switch from the flag list without editing rules, rollout, or sites.',
+    'You are not permitted to toggle feature flags.' => 'You are not permitted to toggle feature flags.',
+    'Toggle {name}' => 'Toggle {name}',
 
     // Flag types
     'Release' => 'Release',

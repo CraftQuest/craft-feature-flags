@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+### Added
+- Quick toggle: flip a flag's master switch directly from the flag list, with the status updating in place ([#3](https://github.com/CraftQuest/craft-feature-flags/issues/3))
+- New `featureFlags:toggle` permission so editors and support staff can flip flags without being able to edit rules, rollout, or sites. The toggle action accepts either `toggle` or `manage` ([#17](https://github.com/CraftQuest/craft-feature-flags/issues/17))
+
 ## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))
