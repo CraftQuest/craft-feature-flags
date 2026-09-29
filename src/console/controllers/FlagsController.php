@@ -4,7 +4,9 @@ namespace craftquest\featureflags\console\controllers;
 
 use Craft;
 use craft\console\Controller;
+use craftquest\featureflags\enums\FlagType;
 use craftquest\featureflags\FeatureFlags;
+use craftquest\featureflags\models\Flag;
 use yii\console\ExitCode;
 use yii\helpers\Console;
 
@@ -18,12 +20,39 @@ class FlagsController extends Controller
      */
     public bool $force = false;
 
+    /**
+     * @var string|null Human-readable name for the new flag. Defaults to a title-cased version of the handle.
+     */
+    public ?string $name = null;
+
+    /**
+     * @var string Flag type for the new flag: release, experiment, ops, or permission.
+     */
+    public string $type = 'release';
+
+    /**
+     * @var bool Whether the new flag starts enabled.
+     */
+    public bool $enabled = false;
+
+    /**
+     * @var string|null Optional description for the new flag.
+     */
+    public ?string $description = null;
+
     public function options($actionID): array
     {
         $options = parent::options($actionID);
 
         if (in_array($actionID, ['delete', 'cleanup-expired'], true)) {
             $options[] = 'force';
+        }
+
+        if ($actionID === 'create') {
+            $options[] = 'name';
+            $options[] = 'type';
+            $options[] = 'enabled';
+            $options[] = 'description';
         }
 
         return $options;
@@ -111,6 +140,22 @@ class FlagsController extends Controller
 
         $this->stdout(Craft::t('feature-flags', 'Rollout Strategy') . ': ', Console::BOLD);
         $this->stdout($flag->rolloutStrategy . PHP_EOL);
+
+        if (Craft::$app->getIsMultiSite()) {
+            $this->stdout(Craft::t('feature-flags', 'Sites') . ': ', Console::BOLD);
+            if (empty($flag->siteSettings)) {
+                $this->stdout(Craft::t('feature-flags', 'All sites') . PHP_EOL);
+            } else {
+                $enabledSites = [];
+                foreach ($flag->siteSettings as $siteId => $isEnabled) {
+                    if ($isEnabled) {
+                        $site = Craft::$app->getSites()->getSiteById((int)$siteId);
+                        $enabledSites[] = $site ? $site->handle : "#{$siteId}";
+                    }
+                }
+                $this->stdout(($enabledSites ? implode(', ', $enabledSites) : Craft::t('feature-flags', 'None')) . PHP_EOL);
+            }
+        }
 
         $this->stdout(Craft::t('feature-flags', 'Expires At') . ': ', Console::BOLD);
         $this->stdout(($flag->expiresAt ? $flag->expiresAt->format('Y-m-d H:i:s') : '—') . PHP_EOL);
@@ -219,6 +264,90 @@ class FlagsController extends Controller
 
         $this->stdout(Craft::t('feature-flags', 'Flag "{name}" deleted.', ['name' => $flag->name]) . PHP_EOL, Console::FG_GREEN);
         return ExitCode::OK;
+    }
+
+    /**
+     * Creates a feature flag.
+     *
+     * @param string $handle The flag handle (lowercase letters, numbers, and hyphens)
+     */
+    public function actionCreate(string $handle): int
+    {
+        $flagService = FeatureFlags::getInstance()->flagService;
+
+        if ($flagService->getFlagByHandle($handle)) {
+            $this->stderr(Craft::t('feature-flags', 'A flag with the handle "{handle}" already exists.', ['handle' => $handle]) . PHP_EOL, Console::FG_RED);
+            return ExitCode::UNPROCESSABLE_ENTITY;
+        }
+
+        $allowedTypes = array_column(FlagType::cases(), 'value');
+        if (!in_array($this->type, $allowedTypes, true)) {
+            $this->stderr(Craft::t('feature-flags', 'Unknown flag type "{type}". Use one of: {types}', [
+                'type' => $this->type,
+                'types' => implode(', ', $allowedTypes),
+            ]) . PHP_EOL, Console::FG_RED);
+            return ExitCode::UNPROCESSABLE_ENTITY;
+        }
+
+        $flag = new Flag();
+        $flag->handle = $handle;
+        $flag->name = $this->name ?? ucwords(str_replace('-', ' ', $handle));
+        $flag->flagType = $this->type;
+        $flag->enabled = $this->enabled;
+        $flag->description = $this->description;
+
+        if (!$flagService->saveFlag($flag)) {
+            $this->printModelErrors($flag);
+            return ExitCode::UNPROCESSABLE_ENTITY;
+        }
+
+        $this->stdout(Craft::t('feature-flags', 'Flag "{name}" created.', ['name' => $flag->name]) . PHP_EOL, Console::FG_GREEN);
+        return ExitCode::OK;
+    }
+
+    /**
+     * Sets a flag's rollout percentage.
+     *
+     * @param string $handle The flag handle
+     * @param string $percentage 0–100, or "none" to remove the rollout
+     */
+    public function actionSetRollout(string $handle, string $percentage): int
+    {
+        $flagService = FeatureFlags::getInstance()->flagService;
+        $flag = $flagService->getFlagByHandle($handle);
+
+        if (!$flag) {
+            $this->stderr(Craft::t('feature-flags', 'Flag not found') . ": $handle" . PHP_EOL, Console::FG_RED);
+            return ExitCode::UNPROCESSABLE_ENTITY;
+        }
+
+        if (strtolower($percentage) === 'none') {
+            $flag->rolloutPercentage = null;
+        } elseif (ctype_digit($percentage) && (int)$percentage <= 100) {
+            $flag->rolloutPercentage = (int)$percentage;
+        } else {
+            $this->stderr(Craft::t('feature-flags', 'Percentage must be a whole number from 0 to 100, or "none".') . PHP_EOL, Console::FG_RED);
+            return ExitCode::UNPROCESSABLE_ENTITY;
+        }
+
+        if (!$flagService->saveFlag($flag)) {
+            $this->printModelErrors($flag);
+            return ExitCode::UNPROCESSABLE_ENTITY;
+        }
+
+        $label = $flag->rolloutPercentage !== null ? $flag->rolloutPercentage . '%' : Craft::t('feature-flags', 'none');
+        $this->stdout(Craft::t('feature-flags', 'Rollout for "{name}" set to {value}.', ['name' => $flag->name, 'value' => $label]) . PHP_EOL, Console::FG_GREEN);
+        return ExitCode::OK;
+    }
+
+    private function printModelErrors(Flag $flag): void
+    {
+        $this->stderr(Craft::t('feature-flags', 'Couldn\'t save flag.') . PHP_EOL, Console::FG_RED);
+        foreach ($flag->getErrors() as $attribute => $errors) {
+            foreach ($errors as $error) {
+                $this->stderr("  {$attribute}: {$error}" . PHP_EOL, Console::FG_RED);
+            }
+        }
     }
 
     /**

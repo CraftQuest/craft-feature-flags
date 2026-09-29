@@ -85,6 +85,13 @@ return [
 
     // Errors
     'Flag not found' => 'Flag not found',
+    'A flag with the handle "{handle}" already exists.' => 'A flag with the handle "{handle}" already exists.',
+    'Unknown flag type "{type}". Use one of: {types}' => 'Unknown flag type "{type}". Use one of: {types}',
+    'Flag "{name}" created.' => 'Flag "{name}" created.',
+    'Percentage must be a whole number from 0 to 100, or "none".' => 'Percentage must be a whole number from 0 to 100, or "none".',
+    'Rollout for "{name}" set to {value}.' => 'Rollout for "{name}" set to {value}.',
+    'none' => 'none',
+    'None' => 'None',
     'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.' => 'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.',
     'Unknown rule type: {type}.' => 'Unknown rule type: {type}.',
 

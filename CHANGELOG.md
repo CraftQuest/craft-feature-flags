@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+### Added
+- Console: `feature-flags/flags/create <handle>` with `--name`, `--type`, `--enabled`, and `--description` options, for creating flags from deploy scripts and migrations ([#19](https://github.com/CraftQuest/craft-feature-flags/issues/19))
+- Console: `feature-flags/flags/set-rollout <handle> <percentage>` to ramp a rollout from CI or cron; pass `none` to remove it ([#19](https://github.com/CraftQuest/craft-feature-flags/issues/19))
+- Console: `info` now lists the sites a flag is enabled on for multi-site installs ([#19](https://github.com/CraftQuest/craft-feature-flags/issues/19))
+
 ## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))
