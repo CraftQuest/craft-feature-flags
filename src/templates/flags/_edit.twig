@@ -90,6 +90,22 @@
         });
     })();
     {% endjs %}
+    {% else %}
+    <p id="ff-handle-warning" class="warning has-icon hidden">
+        <span class="icon" aria-hidden="true"></span>
+        <span class="visually-hidden">{{ 'Warning:'|t('app') }} </span>
+        <span>{{ 'Renaming the handle will disable this flag anywhere the old handle “{handle}” is still used.'|t('feature-flags', { handle: flag.handle }) }}</span>
+    </p>
+    {% js %}
+    (function() {
+        const handle = document.getElementById('handle');
+        const warning = document.getElementById('ff-handle-warning');
+        const original = {{ flag.handle|json_encode|raw }};
+        function sync() { warning.classList.toggle('hidden', handle.value === original); }
+        handle.addEventListener('input', sync);
+        sync();
+    })();
+    {% endjs %}
     {% endif %}
 
     {{ forms.textareaField({

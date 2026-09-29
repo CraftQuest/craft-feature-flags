@@ -225,7 +225,7 @@ class FlagService extends Component
             throw $e;
         }
 
-        $this->logAudit($flag->id, $isNew ? 'created' : 'updated', [
+        $details = [
             'name' => $flag->name,
             'handle' => $flag->handle,
             'enabled' => $flag->enabled,
@@ -233,7 +233,11 @@ class FlagService extends Component
             'rolloutStrategy' => $flag->rolloutStrategy,
             'rulesCount' => count($flag->rules),
             'sitesCount' => is_array($flag->siteSettings) ? count($flag->siteSettings) : 0,
-        ]);
+        ];
+        if ($oldHandle && $oldHandle !== $flag->handle) {
+            $details['previousHandle'] = $oldHandle;
+        }
+        $this->logAudit($flag->id, $isNew ? 'created' : 'updated', $details);
 
         $this->invalidateCache($flag->handle);
         if ($oldHandle && $oldHandle !== $flag->handle) {

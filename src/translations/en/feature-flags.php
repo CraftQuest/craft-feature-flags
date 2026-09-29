@@ -42,6 +42,7 @@ return [
     'Master switch. When off, the flag is disabled regardless of rules or rollout.' => 'Master switch. When off, the flag is disabled regardless of rules or rollout.',
     'A human-readable name for this flag.' => 'A human-readable name for this flag.',
     'Used in templates and APIs.' => 'Used in templates and APIs.',
+    'Renaming the handle will disable this flag anywhere the old handle “{handle}” is still used.' => 'Renaming the handle will disable this flag anywhere the old handle “{handle}” is still used.',
     'Human-readable description of what this flag controls.' => 'Human-readable description of what this flag controls.',
     '0–100. Users are bucketed consistently by their user ID.' => '0–100. Users are bucketed consistently by their user ID.',
     'Optional. Flag returns false after this date.' => 'Optional. Flag returns false after this date.',
