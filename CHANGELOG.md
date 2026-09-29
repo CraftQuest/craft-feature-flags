@@ -2,20 +2,24 @@
 
 ## 1.2.0 - Unreleased
 ### Added
-- When `devMode` is on, checking a flag handle that doesn't exist now logs a warning so typos aren't mistaken for disabled flags ([#14](https://github.com/CraftQuest/craft-feature-flags/issues/14))
-- Copyable Twig, PHP, and console usage snippets in the flag edit page sidebar ([#15](https://github.com/CraftQuest/craft-feature-flags/issues/15))
-- `FlagService` now fires `EVENT_BEFORE_SAVE_FLAG` (cancelable), `EVENT_AFTER_SAVE_FLAG`, `EVENT_AFTER_TOGGLE_FLAG`, and `EVENT_AFTER_DELETE_FLAG`, each carrying a `FlagEvent` with the flag model, so modules can purge static caches or react to flag changes ([#6](https://github.com/CraftQuest/craft-feature-flags/issues/6))
-- The flag edit page now warns when you change an existing flag's handle, since templates still checking the old handle will silently get `false`. The previous handle is also recorded in the audit entry ([#16](https://github.com/CraftQuest/craft-feature-flags/issues/16))
-### Fixed
-- On multi-site installs, choosing “Only specific sites” without switching on any site now fails validation instead of silently disabling the flag everywhere ([#20](https://github.com/CraftQuest/craft-feature-flags/issues/20))
+- Optional **start date** per flag. A flag evaluates as off before its start date, pairing with the existing expiration date to define a full active window. Both are optional and independent ([#2](https://github.com/CraftQuest/craft-feature-flags/issues/2))
 - Quick toggle: flip a flag's master switch directly from the flag list, with the status updating in place ([#3](https://github.com/CraftQuest/craft-feature-flags/issues/3))
 - New `featureFlags:toggle` permission so editors and support staff can flip flags without being able to edit rules, rollout, or sites. The toggle action accepts either `toggle` or `manage` ([#17](https://github.com/CraftQuest/craft-feature-flags/issues/17))
-- Optional **start date** per flag. A flag evaluates as off before its start date, pairing with the existing expiration date to define a full active window. Both are optional and independent ([#2](https://github.com/CraftQuest/craft-feature-flags/issues/2))
+- `FlagService` now fires `EVENT_BEFORE_SAVE_FLAG` (cancelable), `EVENT_AFTER_SAVE_FLAG`, `EVENT_AFTER_TOGGLE_FLAG`, and `EVENT_AFTER_DELETE_FLAG`, each carrying a `FlagEvent` with the flag model, so modules can purge static caches or react to flag changes ([#6](https://github.com/CraftQuest/craft-feature-flags/issues/6))
+- Console: `feature-flags/flags/create <handle>` with `--name`, `--type`, `--enabled`, and `--description` options, for creating flags from deploy scripts and migrations ([#19](https://github.com/CraftQuest/craft-feature-flags/issues/19))
+- Console: `feature-flags/flags/set-rollout <handle> <percentage>` to ramp a rollout from CI or cron; pass `none` to remove it ([#19](https://github.com/CraftQuest/craft-feature-flags/issues/19))
+- Console: `info` now lists the sites a flag is enabled on for multi-site installs ([#19](https://github.com/CraftQuest/craft-feature-flags/issues/19))
+- Copyable Twig, PHP, and console usage snippets in the flag edit page sidebar ([#15](https://github.com/CraftQuest/craft-feature-flags/issues/15))
+- The flag edit page now warns when you change an existing flag's handle, since templates still checking the old handle will silently get `false`. The previous handle is also recorded in the audit entry ([#16](https://github.com/CraftQuest/craft-feature-flags/issues/16))
+- When `devMode` is on, checking a flag handle that doesn't exist now logs a warning so typos aren't mistaken for disabled flags ([#14](https://github.com/CraftQuest/craft-feature-flags/issues/14))
 - `Flag::$startsAt` model property; `EvaluationService::isOutsideSchedule()` static helper
 
 ### Changed
-- Cache version bumped (stored flag objects are refreshed on upgrade)
 - Validation now rejects an expiration date that is not after the start date
+- Cache version bumped (stored flag objects are refreshed on upgrade)
+
+### Fixed
+- On multi-site installs, choosing “Only specific sites” without switching on any site now fails validation instead of silently disabling the flag everywhere ([#20](https://github.com/CraftQuest/craft-feature-flags/issues/20))
 
 ## 1.1.0 - 2026-06-05
 ### Added
