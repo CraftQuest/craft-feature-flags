@@ -30,7 +30,7 @@ class FlagService extends Component
     /** Fired after a flag is deleted. */
     public const EVENT_AFTER_DELETE_FLAG = 'afterDeleteFlag';
 
-    public const CACHE_VERSION = 3;
+    public const CACHE_VERSION = 4;
 
     private ?array $ruleTypesCache = null;
 
@@ -172,6 +172,7 @@ class FlagService extends Component
             $record->rolloutPercentage = $flag->rolloutPercentage;
             $record->rolloutStrategy = $flag->rolloutStrategy;
             $record->flagType = $flag->flagType;
+            $record->startsAt = Db::prepareDateForDb($flag->startsAt);
             $record->expiresAt = Db::prepareDateForDb($flag->expiresAt);
 
             if (!$record->save()) {
@@ -359,6 +360,7 @@ class FlagService extends Component
         $flag->rolloutPercentage = $record->rolloutPercentage !== null ? (int)$record->rolloutPercentage : null;
         $flag->rolloutStrategy = $record->rolloutStrategy ?? 'all';
         $flag->flagType = $record->flagType;
+        $flag->startsAt = DateTimeHelper::toDateTime($record->startsAt) ?: null;
         $flag->expiresAt = DateTimeHelper::toDateTime($record->expiresAt) ?: null;
         $flag->uid = $record->uid;
         $flag->dateCreated = DateTimeHelper::toDateTime($record->dateCreated) ?: null;

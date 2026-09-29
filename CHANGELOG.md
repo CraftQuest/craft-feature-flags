@@ -10,6 +10,12 @@
 - On multi-site installs, choosing “Only specific sites” without switching on any site now fails validation instead of silently disabling the flag everywhere ([#20](https://github.com/CraftQuest/craft-feature-flags/issues/20))
 - Quick toggle: flip a flag's master switch directly from the flag list, with the status updating in place ([#3](https://github.com/CraftQuest/craft-feature-flags/issues/3))
 - New `featureFlags:toggle` permission so editors and support staff can flip flags without being able to edit rules, rollout, or sites. The toggle action accepts either `toggle` or `manage` ([#17](https://github.com/CraftQuest/craft-feature-flags/issues/17))
+- Optional **start date** per flag. A flag evaluates as off before its start date, pairing with the existing expiration date to define a full active window. Both are optional and independent ([#2](https://github.com/CraftQuest/craft-feature-flags/issues/2))
+- `Flag::$startsAt` model property; `EvaluationService::isOutsideSchedule()` static helper
+
+### Changed
+- Cache version bumped (stored flag objects are refreshed on upgrade)
+- Validation now rejects an expiration date that is not after the start date
 
 ## 1.1.0 - 2026-06-05
 ### Added
