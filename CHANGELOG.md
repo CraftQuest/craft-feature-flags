@@ -3,6 +3,7 @@
 ## 1.2.0 - Unreleased
 ### Added
 - When `devMode` is on, checking a flag handle that doesn't exist now logs a warning so typos aren't mistaken for disabled flags ([#14](https://github.com/CraftQuest/craft-feature-flags/issues/14))
+- Copyable Twig, PHP, and console usage snippets in the flag edit page sidebar ([#15](https://github.com/CraftQuest/craft-feature-flags/issues/15))
 
 ## 1.1.0 - 2026-06-05
 ### Added
