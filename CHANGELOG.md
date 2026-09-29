@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+### Added
+- When `devMode` is on, checking a flag handle that doesn't exist now logs a warning so typos aren't mistaken for disabled flags ([#14](https://github.com/CraftQuest/craft-feature-flags/issues/14))
+
 ## 1.1.0 - 2026-06-05
 ### Added
 - Multi-site support: flags can apply to all sites (default) or be scoped to specific sites on multi-site installs ([#1](https://github.com/CraftQuest/craft-feature-flags/issues/1))

@@ -199,6 +199,11 @@ class EvaluationService extends Component
         $flag = $this->getFlagFromCache($handle);
 
         if ($flag === null) {
+            // An unknown handle is indistinguishable from a disabled flag, so surface
+            // likely typos in dev. No behavior change: the flag still evaluates to off.
+            if (Craft::$app->getConfig()->getGeneral()->devMode) {
+                Craft::warning("Feature flag \"{$handle}\" was checked but does not exist.", __METHOD__);
+            }
             return false;
         }
 
