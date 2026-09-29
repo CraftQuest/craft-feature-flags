@@ -149,6 +149,10 @@ class FeatureFlags extends Plugin
                         'featureFlags:view' => [
                             'label' => Craft::t('feature-flags', 'View feature flags'),
                             'nested' => [
+                                'featureFlags:toggle' => [
+                                    'label' => Craft::t('feature-flags', 'Toggle feature flags on and off'),
+                                    'info' => Craft::t('feature-flags', 'Flip the master switch from the flag list without editing rules, rollout, or sites.'),
+                                ],
                                 'featureFlags:manage' => [
                                     'label' => Craft::t('feature-flags', 'Manage feature flags'),
                                 ],

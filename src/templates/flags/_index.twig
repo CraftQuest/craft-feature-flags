@@ -13,6 +13,8 @@
     {% endif %}
 {% endblock %}
 
+{% set canToggle = currentUser.can('featureFlags:toggle') or currentUser.can('featureFlags:manage') %}
+
 {% block content %}
     {% if flags|length %}
         <table class="data fullwidth">
@@ -41,8 +43,23 @@
                         </td>
                         <td>{{ flag.flagType|capitalize }}</td>
                         <td>
-                            <span class="status {{ flag.enabled ? 'active' : 'expired' }}"></span>
-                            {{ flag.enabled ? 'Enabled'|t('feature-flags') : 'Disabled'|t('feature-flags') }}
+                            <div class="flex" style="gap: 8px; align-items: center;">
+                                {% if canToggle %}
+                                    {{ forms.lightswitch({
+                                        id: 'ff-toggle-' ~ flag.id,
+                                        on: flag.enabled,
+                                        small: true,
+                                        containerAttributes: {
+                                            data: { 'flag-id': flag.id },
+                                            aria: { label: 'Toggle {name}'|t('feature-flags', { name: flag.name }) },
+                                        },
+                                    }) }}
+                                {% endif %}
+                                <span class="ff-status">
+                                    <span class="status {{ flag.enabled ? 'active' : 'expired' }}"></span>
+                                    <span class="ff-status-text">{{ flag.enabled ? 'Enabled'|t('feature-flags') : 'Disabled'|t('feature-flags') }}</span>
+                                </span>
+                            </div>
                         </td>
                         <td>{{ flag.rolloutPercentage is not null ? flag.rolloutPercentage ~ '%' : '—' }}</td>
                         <td>{{ flag.rules|length }}</td>
@@ -68,6 +85,40 @@
         </table>
     {% else %}
         <p class="zilch">{{ 'No feature flags yet.'|t('feature-flags') }}</p>
+    {% endif %}
+
+    {% if canToggle %}
+    {% js %}
+    (function() {
+        const enabledText = {{ 'Enabled'|t('feature-flags')|json_encode|raw }};
+        const disabledText = {{ 'Disabled'|t('feature-flags')|json_encode|raw }};
+        const savedText = {{ 'Flag toggled.'|t('feature-flags')|json_encode|raw }};
+        const failedText = {{ 'Could not toggle flag.'|t('feature-flags')|json_encode|raw }};
+
+        $('.lightswitch[data-flag-id]').each(function() {
+            const $switch = $(this);
+            const flagId = $switch.data('flag-id');
+            const $status = $switch.closest('td').find('.ff-status');
+
+            $switch.on('change', function() {
+                const lightswitch = $switch.data('lightswitch');
+                const enabled = lightswitch.on;
+
+                Craft.sendActionRequest('POST', 'feature-flags/flags/toggle', {
+                    data: { flagId: flagId, enabled: enabled ? 1 : 0 },
+                }).then(function() {
+                    $status.find('.status').toggleClass('active', enabled).toggleClass('expired', !enabled);
+                    $status.find('.ff-status-text').text(enabled ? enabledText : disabledText);
+                    Craft.cp.displayNotice(savedText);
+                }).catch(function() {
+                    // Revert without firing another change event (the `true` arg skips onChange).
+                    enabled ? lightswitch.turnOff(true) : lightswitch.turnOn(true);
+                    Craft.cp.displayError(failedText);
+                });
+            });
+        });
+    })();
+    {% endjs %}
     {% endif %}
 
 {% endblock %}
