@@ -2,10 +2,13 @@
 
 namespace craftquest\featureflags\records;
 
-use craft\db\ActiveRecord;
-use craftquest\featureflags\enums\FlagType;
+use CraftCms\Cms\Shared\BaseModel;
+use CraftCms\Cms\Shared\Concerns\HasUid;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
+ * A feature flag row. Validation lives on models\Flag; FlagService converts between them.
+ *
  * @property int $id
  * @property string $name
  * @property string $handle
@@ -14,42 +17,38 @@ use craftquest\featureflags\enums\FlagType;
  * @property int|null $rolloutPercentage
  * @property string $rolloutStrategy
  * @property string $flagType
- * @property string|null $startsAt
- * @property string|null $expiresAt
- * @property string $dateCreated
- * @property string $dateUpdated
+ * @property \Carbon\CarbonInterface|null $startsAt
+ * @property \Carbon\CarbonInterface|null $expiresAt
  * @property string $uid
  */
-class FlagRecord extends ActiveRecord
+class FlagRecord extends BaseModel
 {
+    use HasUid;
+
+    public const TABLE = 'featureflags_flags';
+
+    protected $table = self::TABLE;
+
+    protected $casts = [
+        'enabled' => 'bool',
+        'rolloutPercentage' => 'integer',
+        'startsAt' => 'datetime',
+        'expiresAt' => 'datetime',
+    ];
+
+    /** Yii-style table name, used by the migrations. */
     public static function tableName(): string
     {
-        return '{{%featureflags_flags}}';
+        return '{{%' . self::TABLE . '}}';
     }
 
-    public function rules(): array
+    public function rules(): HasMany
     {
-        return [
-            [['handle'], 'unique'],
-            [['name', 'handle', 'flagType'], 'required'],
-            [['name'], 'string', 'max' => 100],
-            [['handle'], 'string', 'max' => 100],
-            [['description'], 'string'],
-            [['enabled'], 'boolean'],
-            [['rolloutPercentage'], 'integer', 'min' => 0, 'max' => 100, 'skipOnEmpty' => true],
-            [['rolloutStrategy'], 'in', 'range' => ['all', 'rule']],
-            [['flagType'], 'in', 'range' => array_column(FlagType::cases(), 'value')],
-            [['startsAt', 'expiresAt'], 'datetime', 'format' => 'php:Y-m-d H:i:s'],
-        ];
+        return $this->hasMany(RuleRecord::class, 'flagId')->orderBy('id');
     }
 
-    public function getRules(): \yii\db\ActiveQueryInterface
+    public function flagSites(): HasMany
     {
-        return $this->hasMany(RuleRecord::class, ['flagId' => 'id']);
-    }
-
-    public function getFlagSites(): \yii\db\ActiveQueryInterface
-    {
-        return $this->hasMany(FlagSiteRecord::class, ['flagId' => 'id']);
+        return $this->hasMany(FlagSiteRecord::class, 'flagId');
     }
 }

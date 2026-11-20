@@ -2,35 +2,30 @@
 
 namespace craftquest\featureflags\records;
 
-use craft\db\ActiveRecord;
+use CraftCms\Cms\Shared\BaseModel;
+use CraftCms\Cms\Shared\Concerns\HasUid;
 
 /**
+ * Per-site enabled state for a flag scoped to specific sites.
+ *
  * @property int $id
  * @property int $flagId
  * @property int $siteId
  * @property bool $enabled
- * @property string $dateCreated
- * @property string $dateUpdated
- * @property string $uid
  */
-class FlagSiteRecord extends ActiveRecord
+class FlagSiteRecord extends BaseModel
 {
+    use HasUid;
+
+    public const TABLE = 'featureflags_flags_sites';
+
+    protected $table = self::TABLE;
+
+    protected $casts = ['flagId' => 'integer', 'siteId' => 'integer', 'enabled' => 'bool'];
+
+    /** Yii-style table name, used by the migrations. */
     public static function tableName(): string
     {
-        return '{{%featureflags_flags_sites}}';
-    }
-
-    public function rules(): array
-    {
-        return [
-            [['flagId', 'siteId'], 'required'],
-            [['flagId', 'siteId'], 'integer'],
-            [['enabled'], 'boolean'],
-        ];
-    }
-
-    public function getFlag(): \yii\db\ActiveQueryInterface
-    {
-        return $this->hasOne(FlagRecord::class, ['id' => 'flagId']);
+        return '{{%' . self::TABLE . '}}';
     }
 }

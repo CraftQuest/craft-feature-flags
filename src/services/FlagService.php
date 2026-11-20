@@ -3,11 +3,8 @@
 namespace craftquest\featureflags\services;
 
 use function CraftCms\Cms\{currentUser, t};
-use Craft;
 use craft\base\Component;
-use craft\db\Query;
-use CraftCms\Cms\Support\DateTimeHelper;
-use craft\helpers\Db;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use craftquest\featureflags\FeatureFlags;
@@ -83,14 +80,17 @@ class FlagService extends Component
      */
     public function getAllFlags(): array
     {
-        $records = FlagRecord::find()->with(['rules', 'flagSites'])->orderBy('name')->all();
-
-        return array_map(fn(FlagRecord $record) => $this->populateFlag($record), $records);
+        return FlagRecord::query()
+            ->with(['rules', 'flagSites'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn(FlagRecord $record) => $this->populateFlag($record))
+            ->all();
     }
 
     public function getFlagById(int $id): ?Flag
     {
-        $record = FlagRecord::find()->where(['id' => $id])->with(['rules', 'flagSites'])->one();
+        $record = FlagRecord::query()->with(['rules', 'flagSites'])->find($id);
 
         return $record ? $this->populateFlag($record) : null;
     }
@@ -100,19 +100,18 @@ class FlagService extends Component
      */
     public function getExpiredFlags(): array
     {
-        $now = now('UTC');
-        $records = FlagRecord::find()
-            ->where(['not', ['expiresAt' => null]])
-            ->andWhere(['<', 'expiresAt', $now->format('Y-m-d H:i:s')])
+        return FlagRecord::query()
+            ->whereNotNull('expiresAt')
+            ->where('expiresAt', '<', now('UTC')->format('Y-m-d H:i:s'))
             ->with(['rules', 'flagSites'])
+            ->get()
+            ->map(fn(FlagRecord $r) => $this->populateFlag($r))
             ->all();
-
-        return array_map(fn(FlagRecord $r) => $this->populateFlag($r), $records);
     }
 
     public function getFlagByHandle(string $handle): ?Flag
     {
-        $record = FlagRecord::find()->where(['handle' => $handle])->with(['rules', 'flagSites'])->one();
+        $record = FlagRecord::query()->with(['rules', 'flagSites'])->where('handle', $handle)->first();
 
         return $record ? $this->populateFlag($record) : null;
     }
@@ -157,75 +156,55 @@ class FlagService extends Component
             }
         }
 
-        $transaction = Craft::$app->getDb()->beginTransaction();
         try {
-            if ($isNew) {
-                $record = new FlagRecord();
-            } else {
-                $record = FlagRecord::findOne($flag->id);
-                if (!$record) {
-                    throw new \yii\base\InvalidArgumentException("Flag not found: {$flag->id}");
-                }
-                $oldHandle = $record->handle;
-            }
+            $oldHandle = DB::transaction(function () use ($flag, $isNew): ?string {
+                $oldHandle = null;
 
-            $record->name = $flag->name;
-            $record->handle = $flag->handle;
-            $record->description = $flag->description;
-            $record->enabled = $flag->enabled;
-            $record->rolloutPercentage = $flag->rolloutPercentage;
-            $record->rolloutStrategy = $flag->rolloutStrategy;
-            $record->flagType = $flag->flagType;
-            $record->startsAt = Db::prepareDateForDb($flag->startsAt);
-            $record->expiresAt = Db::prepareDateForDb($flag->expiresAt);
-
-            if (!$record->save()) {
-                $flag->addErrors($record->getErrors());
-                $transaction->rollBack();
-                Log::error('Failed to save flag record: ' . json_encode($record->errors));
-                return false;
-            }
-
-            $flag->id = $record->id;
-
-            RuleRecord::deleteAll(['flagId' => $flag->id]);
-
-            foreach ($flag->rules as $rule) {
-                $ruleRecord = new RuleRecord();
-                $ruleRecord->flagId = $flag->id;
-                $ruleRecord->ruleType = $rule->ruleType;
-                $ruleRecord->ruleValue = $rule->ruleValue;
-
-                if (!$ruleRecord->save()) {
-                    $transaction->rollBack();
-                    Log::error('Failed to save rule record: ' . json_encode($ruleRecord->errors));
-                    return false;
+                if ($isNew) {
+                    $record = new FlagRecord();
+                } else {
+                    $record = FlagRecord::query()->find($flag->id)
+                        ?? throw new \InvalidArgumentException("Flag not found: {$flag->id}");
+                    $oldHandle = $record->handle;
                 }
 
-                $rule->id = $ruleRecord->id;
-                $rule->flagId = $flag->id;
-            }
+                $record->name = $flag->name;
+                $record->handle = $flag->handle;
+                $record->description = $flag->description;
+                $record->enabled = $flag->enabled;
+                $record->rolloutPercentage = $flag->rolloutPercentage;
+                $record->rolloutStrategy = $flag->rolloutStrategy;
+                $record->flagType = $flag->flagType;
+                $record->startsAt = $flag->startsAt;
+                $record->expiresAt = $flag->expiresAt;
+                $record->save();
 
-            FlagSiteRecord::deleteAll(['flagId' => $flag->id]);
+                $flag->id = $record->id;
+                $flag->uid = $record->uid;
 
-            if (is_array($flag->siteSettings)) {
-                foreach ($flag->siteSettings as $siteId => $enabled) {
-                    $flagSiteRecord = new FlagSiteRecord();
-                    $flagSiteRecord->flagId = $flag->id;
-                    $flagSiteRecord->siteId = (int)$siteId;
-                    $flagSiteRecord->enabled = (bool)$enabled;
-
-                    if (!$flagSiteRecord->save()) {
-                        $transaction->rollBack();
-                        Log::error('Failed to save flag site record: ' . json_encode($flagSiteRecord->errors));
-                        return false;
-                    }
+                RuleRecord::query()->where('flagId', $flag->id)->delete();
+                foreach ($flag->rules as $rule) {
+                    $ruleRecord = RuleRecord::query()->create([
+                        'flagId' => $flag->id,
+                        'ruleType' => $rule->ruleType,
+                        'ruleValue' => $rule->ruleValue,
+                    ]);
+                    $rule->id = $ruleRecord->id;
+                    $rule->flagId = $flag->id;
                 }
-            }
 
-            $transaction->commit();
+                FlagSiteRecord::query()->where('flagId', $flag->id)->delete();
+                foreach ($flag->siteSettings ?? [] as $siteId => $enabled) {
+                    FlagSiteRecord::query()->create([
+                        'flagId' => $flag->id,
+                        'siteId' => (int)$siteId,
+                        'enabled' => (bool)$enabled,
+                    ]);
+                }
+
+                return $oldHandle;
+            });
         } catch (\Throwable $e) {
-            $transaction->rollBack();
             Log::error('Failed to save flag: ' . $e->getMessage());
             throw $e;
         }
@@ -263,12 +242,10 @@ class FlagService extends Component
             return false;
         }
 
-        $transaction = Craft::$app->getDb()->beginTransaction();
         try {
-            FlagRecord::deleteAll(['id' => $id]);
-            $transaction->commit();
+            // Rules and site rows cascade; audit rows keep their history with flagId set to null.
+            FlagRecord::query()->whereKey($id)->delete();
         } catch (\Throwable $e) {
-            $transaction->rollBack();
             Log::error('Failed to delete flag: ' . $e->getMessage());
             throw $e;
         }
@@ -286,22 +263,15 @@ class FlagService extends Component
 
     public function toggleFlag(int $id, bool $enabled): bool
     {
-        $record = FlagRecord::findOne($id);
+        $record = FlagRecord::query()->find($id);
         if (!$record) {
             return false;
         }
 
-        $transaction = Craft::$app->getDb()->beginTransaction();
         try {
             $record->enabled = $enabled;
-            if (!$record->save()) {
-                $transaction->rollBack();
-                Log::error('Failed to toggle flag: ' . json_encode($record->getErrors()));
-                return false;
-            }
-            $transaction->commit();
+            $record->save();
         } catch (\Throwable $e) {
-            $transaction->rollBack();
             Log::error('Failed to toggle flag: ' . $e->getMessage());
             throw $e;
         }
@@ -328,29 +298,18 @@ class FlagService extends Component
      */
     public function getAuditLog(?int $flagId = null, int $limit = 200, int $offset = 0): array
     {
-        $query = (new Query())
-            ->select([
-                'a.id',
-                'a.flagId',
-                'a.userId',
-                'a.action',
-                'a.details',
-                'a.dateCreated',
-                'f.name as flagName',
-                'u.username',
-            ])
-            ->from(['a' => AuditRecord::tableName()])
-            ->leftJoin(['f' => FlagRecord::tableName()], '[[a.flagId]] = [[f.id]]')
-            ->leftJoin(['u' => '{{%users}}'], '[[a.userId]] = [[u.id]]')
-            ->orderBy(['a.dateCreated' => SORT_DESC])
+        return DB::table(AuditRecord::TABLE . ' as a')
+            ->select(['a.id', 'a.flagId', 'a.userId', 'a.action', 'a.details', 'a.dateCreated', 'f.name as flagName', 'u.username'])
+            ->leftJoin(FlagRecord::TABLE . ' as f', 'a.flagId', '=', 'f.id')
+            ->leftJoin('users as u', 'a.userId', '=', 'u.id')
+            ->when($flagId !== null, fn($query) => $query->where('a.flagId', $flagId))
+            ->orderByDesc('a.dateCreated')
+            ->orderByDesc('a.id')
             ->limit($limit)
-            ->offset($offset);
-
-        if ($flagId !== null) {
-            $query->where(['a.flagId' => $flagId]);
-        }
-
-        return $query->all();
+            ->offset($offset)
+            ->get()
+            ->map(fn(object $row): array => (array)$row)
+            ->all();
     }
 
     private function populateFlag(FlagRecord $record): Flag
@@ -360,24 +319,25 @@ class FlagService extends Component
         $flag->name = $record->name;
         $flag->handle = $record->handle;
         $flag->description = $record->description;
-        $flag->enabled = (bool)$record->enabled;
-        $flag->rolloutPercentage = $record->rolloutPercentage !== null ? (int)$record->rolloutPercentage : null;
+        $flag->enabled = $record->enabled;
+        $flag->rolloutPercentage = $record->rolloutPercentage;
         $flag->rolloutStrategy = $record->rolloutStrategy ?? 'all';
         $flag->flagType = $record->flagType;
-        $flag->startsAt = DateTimeHelper::toDateTime($record->startsAt) ?: null;
-        $flag->expiresAt = DateTimeHelper::toDateTime($record->expiresAt) ?: null;
+        // Eloquent's date casts read the stored UTC values into the system time zone.
+        $flag->startsAt = $record->startsAt;
+        $flag->expiresAt = $record->expiresAt;
         $flag->uid = $record->uid;
-        $flag->dateCreated = DateTimeHelper::toDateTime($record->dateCreated) ?: null;
-        $flag->dateUpdated = DateTimeHelper::toDateTime($record->dateUpdated) ?: null;
+        $flag->dateCreated = $record->dateCreated;
+        $flag->dateUpdated = $record->dateUpdated;
 
-        $flag->rules = array_map(function (RuleRecord $ruleRecord) {
+        $flag->rules = $record->rules->map(function (RuleRecord $ruleRecord) {
             $rule = new Rule();
             $rule->id = $ruleRecord->id;
             $rule->flagId = $ruleRecord->flagId;
             $rule->ruleType = $ruleRecord->ruleType;
             $rule->ruleValue = $ruleRecord->ruleValue;
             return $rule;
-        }, $record->rules ?? []);
+        })->all();
 
         $siteSettings = [];
         foreach ($record->flagSites ?? [] as $flagSite) {
@@ -397,13 +357,16 @@ class FlagService extends Component
             return;
         }
 
-        $audit = new AuditRecord();
-        $audit->flagId = $flagId;
-        $audit->userId = currentUser()?->getCraftUserId();
-        $audit->action = $action;
-        $audit->details = json_encode($details);
-        if (!$audit->save()) {
-            Log::error('Failed to save audit record: ' . json_encode($audit->getErrors()));
+        try {
+            AuditRecord::query()->create([
+                'flagId' => $flagId,
+                'userId' => currentUser()?->getCraftUserId(),
+                'action' => $action,
+                'details' => json_encode($details),
+            ]);
+        } catch (\Throwable $e) {
+            // The audit log is best-effort: never fail the change it records.
+            Log::error('Failed to save audit record: ' . $e->getMessage());
         }
     }
 

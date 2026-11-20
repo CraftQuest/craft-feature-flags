@@ -2,42 +2,29 @@
 
 namespace craftquest\featureflags\records;
 
-use craft\db\ActiveRecord;
-use craft\records\User;
+use CraftCms\Cms\Shared\BaseModel;
+use CraftCms\Cms\Shared\Concerns\HasUid;
 
 /**
+ * An audit log entry. flagId is set to null when the flag is deleted.
+ *
  * @property int $id
  * @property int|null $flagId
  * @property int|null $userId
  * @property string $action
- * @property string|null $details
- * @property string $dateCreated
- * @property string $uid
+ * @property string|null $details JSON
  */
-class AuditRecord extends ActiveRecord
+class AuditRecord extends BaseModel
 {
+    use HasUid;
+
+    public const TABLE = 'featureflags_audit';
+
+    protected $table = self::TABLE;
+
+    /** Yii-style table name, used by the migrations. */
     public static function tableName(): string
     {
-        return '{{%featureflags_audit}}';
-    }
-
-    public function rules(): array
-    {
-        return [
-            [['action'], 'required'],
-            [['flagId', 'userId'], 'integer'],
-            [['action'], 'string', 'max' => 50],
-            [['details'], 'string'],
-        ];
-    }
-
-    public function getFlag(): \yii\db\ActiveQueryInterface
-    {
-        return $this->hasOne(FlagRecord::class, ['id' => 'flagId']);
-    }
-
-    public function getUser(): \yii\db\ActiveQueryInterface
-    {
-        return $this->hasOne(User::class, ['id' => 'userId']);
+        return '{{%' . self::TABLE . '}}';
     }
 }

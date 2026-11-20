@@ -110,12 +110,11 @@ class Flag extends Model
             [['handle'], 'string', 'max' => 100],
             [['handle'], 'match', 'pattern' => '/^[a-z][a-z0-9\-]*$/', 'message' => Craft::t('feature-flags', 'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.')],
             [['handle'], function ($attribute) {
-                $query = \craftquest\featureflags\records\FlagRecord::find()
-                    ->where(['handle' => $this->$attribute]);
-                if ($this->id) {
-                    $query->andWhere(['not', ['id' => $this->id]]);
-                }
-                if ($query->exists()) {
+                $taken = \craftquest\featureflags\records\FlagRecord::query()
+                    ->where('handle', $this->$attribute)
+                    ->when($this->id, fn($query) => $query->whereKeyNot($this->id))
+                    ->exists();
+                if ($taken) {
                     $this->addError($attribute, Craft::t('feature-flags', 'This handle is already in use.'));
                 }
             }],
