@@ -2,7 +2,7 @@
 
 namespace craftquest\featureflags\variables;
 
-use Craft;
+use function CraftCms\Cms\{currentUser};
 use craftquest\featureflags\FeatureFlags;
 
 class FeatureFlagVariable
@@ -17,8 +17,7 @@ class FeatureFlagVariable
      */
     public function getAllFlags(): array
     {
-        $user = Craft::$app->getUser()->getIdentity();
-        if (!$user || !$user->can('featureFlags:view')) {
+        if (!currentUser()?->can('featureFlags:view')) {
             return [];
         }
 

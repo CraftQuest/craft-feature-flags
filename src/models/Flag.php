@@ -37,6 +37,66 @@ class Flag extends Model
      */
     public ?array $siteSettings = null;
 
+    /**
+     * A plain-array snapshot for the flag cache (Craft 6's cache won't unserialize plugin
+     * objects). Round-trips through fromCacheArray(); dates keep their offset.
+     */
+    public function toCacheArray(): array
+    {
+        $date = static fn(?\DateTimeInterface $d): ?string => $d?->format(DATE_ATOM);
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'handle' => $this->handle,
+            'description' => $this->description,
+            'enabled' => $this->enabled,
+            'rolloutPercentage' => $this->rolloutPercentage,
+            'rolloutStrategy' => $this->rolloutStrategy,
+            'flagType' => $this->flagType,
+            'startsAt' => $date($this->startsAt),
+            'expiresAt' => $date($this->expiresAt),
+            'uid' => $this->uid,
+            'dateCreated' => $date($this->dateCreated),
+            'dateUpdated' => $date($this->dateUpdated),
+            'rules' => array_map(static fn(Rule $r): array => ['id' => $r->id, 'ruleType' => $r->ruleType, 'ruleValue' => $r->ruleValue], $this->rules),
+            'siteSettings' => $this->siteSettings,
+        ];
+    }
+
+    public static function fromCacheArray(array $data): self
+    {
+        $date = static fn(?string $d): ?DateTime => $d !== null ? new DateTime($d) : null;
+
+        $flag = new self();
+        $flag->id = $data['id'];
+        $flag->name = $data['name'];
+        $flag->handle = $data['handle'];
+        $flag->description = $data['description'];
+        $flag->enabled = $data['enabled'];
+        $flag->rolloutPercentage = $data['rolloutPercentage'];
+        $flag->rolloutStrategy = $data['rolloutStrategy'];
+        $flag->flagType = $data['flagType'];
+        $flag->startsAt = $date($data['startsAt']);
+        $flag->expiresAt = $date($data['expiresAt']);
+        $flag->uid = $data['uid'];
+        $flag->dateCreated = $date($data['dateCreated']);
+        $flag->dateUpdated = $date($data['dateUpdated']);
+        $flag->rules = array_map(static function(array $r) use ($flag): Rule {
+            $rule = new Rule();
+            $rule->id = $r['id'];
+            $rule->flagId = $flag->id;
+            $rule->ruleType = $r['ruleType'];
+            $rule->ruleValue = $r['ruleValue'];
+            return $rule;
+        }, $data['rules']);
+        $flag->siteSettings = $data['siteSettings'] !== null
+            ? array_map('boolval', array_combine(array_map('intval', array_keys($data['siteSettings'])), $data['siteSettings']))
+            : null;
+
+        return $flag;
+    }
+
     public function safeAttributes(): array
     {
         return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'rolloutStrategy', 'flagType', 'startsAt', 'expiresAt', 'rules', 'siteSettings'];

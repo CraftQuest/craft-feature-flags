@@ -2,12 +2,15 @@
 
 namespace craftquest\featureflags\services;
 
-use Craft;
+use function CraftCms\Cms\{currentUserElement};
 use craft\base\Component;
 use craft\commerce\elements\Subscription;
-use craft\elements\User;
-use craft\helpers\DateTimeHelper;
-use craft\helpers\StringHelper;
+use CraftCms\Cms\Site\Data\Site;
+use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\User\Elements\User;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use craftquest\featureflags\FeatureFlags;
 use craftquest\featureflags\events\EvaluateRuleEvent;
 use craftquest\featureflags\models\Flag;
@@ -24,8 +27,8 @@ class EvaluationService extends Component
 
     public function isEnabled(string $handle, ?User $user = null, ?string $bucketKey = null, ?int $siteId = null): bool
     {
-        if ($user === null && Craft::$app instanceof \craft\web\Application) {
-            $user = Craft::$app->getUser()->getIdentity();
+        if ($user === null && !app()->runningInConsole()) {
+            $user = currentUserElement();
         }
 
         // Key the request cache by the requested site context. An explicit siteId is
@@ -199,7 +202,7 @@ class EvaluationService extends Component
             // stay in the same rollout buckets; re-issuing it below converts the cookie.
             $legacyKey = (string)(\CraftCms\Cms\Cms::config()->securityKey ?: getenv('CRAFT_SECURITY_KEY'));
             $visitorId = self::legacyVisitorId($_COOKIE[$cookieName] ?? null, $cookieName, $legacyKey ?: null)
-                ?? StringHelper::UUID();
+                ?? Str::uuid()->toString();
 
             \Illuminate\Support\Facades\Cookie::queue(
                 $cookieName,
@@ -255,16 +258,14 @@ class EvaluationService extends Component
      * Resolves the site to evaluate against: an explicit site id if given, otherwise the
      * current site in a web request, or null when there is no site context (console/queue).
      */
-    private function resolveCurrentSite(?int $siteId = null): ?\craft\models\Site
+    private function resolveCurrentSite(?int $siteId = null): ?Site
     {
-        $sites = Craft::$app->getSites();
-
         if ($siteId !== null) {
-            return $sites->getSiteById($siteId);
+            return Sites::getSiteById($siteId);
         }
 
-        if (Craft::$app instanceof \craft\web\Application) {
-            return $sites->getCurrentSite();
+        if (!app()->runningInConsole()) {
+            return Sites::getCurrentSite();
         }
 
         return null;
@@ -301,8 +302,8 @@ class EvaluationService extends Component
         if ($flag === null) {
             // An unknown handle is indistinguishable from a disabled flag, so surface
             // likely typos in dev. No behavior change: the flag still evaluates to off.
-            if (Craft::$app->getConfig()->getGeneral()->devMode) {
-                Craft::warning("Feature flag \"{$handle}\" was checked but does not exist.", __METHOD__);
+            if (app()->hasDebugModeEnabled()) {
+                Log::warning("Feature flag \"{$handle}\" was checked but does not exist.");
             }
             return self::result(false, 'not_found');
         }
@@ -316,12 +317,12 @@ class EvaluationService extends Component
         // on; unlisted sites, sites added later, and unresolvable sites (console/queue, or
         // an invalid explicit siteId) are gated off — pass a valid siteId for a reliable
         // per-site answer outside web requests.
-        $isMultiSite = Craft::$app->getIsMultiSite();
+        $isMultiSite = Sites::isMultiSite();
         // isEnabled() falls back to the current request's site; explain() uses only an explicit siteId.
         $site = match (true) {
             !$isMultiSite => null,
             $useRequestContext => $this->resolveCurrentSite($siteId),
-            $siteId !== null => Craft::$app->getSites()->getSiteById($siteId),
+            $siteId !== null => Sites::getSiteById($siteId),
             default => null,
         };
         if (self::isGatedOff($isMultiSite, $site?->id, $flag->siteSettings ?? [])) {
@@ -329,7 +330,7 @@ class EvaluationService extends Component
         }
 
         // Schedule window: off before the start date, off after the expiration date.
-        $now = DateTimeHelper::now();
+        $now = now();
         if (self::isOutsideSchedule($flag->startsAt, $flag->expiresAt, $now)) {
             $notStarted = $flag->startsAt !== null && $now < $flag->startsAt;
             return self::result(false, $notStarted ? 'not_started' : 'expired');
@@ -502,9 +503,10 @@ class EvaluationService extends Component
 
         $cacheKey = FlagService::cacheKey($handle);
 
-        $cached = Craft::$app->getCache()->get($cacheKey);
-        if ($cached instanceof Flag) {
-            return $cached;
+        // Flags are cached as plain arrays: Craft 6's cache won't unserialize plugin objects.
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached)) {
+            return Flag::fromCacheArray($cached);
         }
         if ($cached === '') {
             return null;
@@ -514,18 +516,18 @@ class EvaluationService extends Component
 
         if ($flag === null) {
             // Negative cache as empty string so repeat misses don't hit the DB.
-            Craft::$app->getCache()->set($cacheKey, '', $cacheTtl);
+            Cache::put($cacheKey, '', $cacheTtl);
             return null;
         }
 
-        Craft::$app->getCache()->set($cacheKey, $flag, $cacheTtl);
+        Cache::put($cacheKey, $flag->toCacheArray(), $cacheTtl);
 
         return $flag;
     }
 
     private function matchesEnvironment(string $envName): bool
     {
-        $currentEnv = Craft::$app->env;
+        $currentEnv = app()->environment();
         return $currentEnv === $envName;
     }
 

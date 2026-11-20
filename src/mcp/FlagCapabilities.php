@@ -2,10 +2,11 @@
 
 namespace craftquest\featureflags\mcp;
 
-use Craft;
-use craft\helpers\DateTimeHelper;
-use craft\helpers\Json;
-use craft\helpers\UrlHelper;
+use function CraftCms\Cms\{cp_url};
+use CraftCms\Cms\Support\DateTimeHelper;
+use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Support\Facades\Users;
+use CraftCms\Cms\Support\Json;
 use CraftCms\Cms\Mcp\Attributes\RequiresPermission;
 use CraftCms\Cms\Mcp\McpActor;
 use CraftCms\Cms\User\Contracts\CraftUser;
@@ -130,17 +131,16 @@ class FlagCapabilities
     ): array {
         $evalUser = null;
         if ($user !== null && $user !== '') {
-            $users = Craft::$app->getUsers();
             $evalUser = ctype_digit($user)
-                ? $users->getUserById((int)$user)
-                : $users->getUserByUsernameOrEmail($user);
+                ? Users::getUserById((int)$user)
+                : Users::getUserByUsernameOrEmail($user);
 
             if (!$evalUser) {
                 throw new ToolCallException("User not found: {$user}");
             }
         }
 
-        if ($siteId !== null && !Craft::$app->getSites()->getSiteById($siteId)) {
+        if ($siteId !== null && !Sites::getSiteById($siteId)) {
             throw new ToolCallException("Site not found: {$siteId}");
         }
 
@@ -507,13 +507,13 @@ class FlagCapabilities
             return null;
         }
 
-        $sites = Craft::$app->getSites();
+        $sites = Sites::getFacadeRoot();
         $enabledIds = [];
 
         foreach ($handles as $handle) {
             $site = is_string($handle) ? $sites->getSiteByHandle($handle) : null;
             if (!$site) {
-                $available = implode(', ', array_map(static fn($s) => $s->handle, $sites->getAllSites()));
+                $available = $sites->getAllSites()->map(static fn($s) => $s->handle)->implode(', ');
                 throw new ToolCallException("Site not found: {$handle}. Available sites: {$available}.");
             }
             $enabledIds[$site->id] = true;
@@ -536,7 +536,7 @@ class FlagCapabilities
             return 'disabled';
         }
 
-        $now = DateTimeHelper::now();
+        $now = now();
 
         if ($flag->startsAt !== null && $now < $flag->startsAt) {
             return 'scheduled';
@@ -571,7 +571,7 @@ class FlagCapabilities
             $sites = [];
             foreach ($flag->siteSettings as $siteId => $enabled) {
                 if ($enabled) {
-                    $sites[] = Craft::$app->getSites()->getSiteById($siteId)?->handle ?? (string)$siteId;
+                    $sites[] = Sites::getSiteById($siteId)?->handle ?? (string)$siteId;
                 }
             }
         }
@@ -593,7 +593,7 @@ class FlagCapabilities
             'sites' => $sites,
             'dateCreated' => $flag->dateCreated?->format(DATE_ATOM),
             'dateUpdated' => $flag->dateUpdated?->format(DATE_ATOM),
-            'cpEditUrl' => UrlHelper::cpUrl('feature-flags/' . $flag->id),
+            'cpEditUrl' => cp_url('feature-flags/' . $flag->id),
             'usage' => [
                 'twig' => "{% if craft.featureFlags.isEnabled('{$flag->handle}') %}",
                 'php' => "FeatureFlags::getInstance()->evaluationService->isEnabled('{$flag->handle}')",

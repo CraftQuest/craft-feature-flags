@@ -2,12 +2,14 @@
 
 namespace craftquest\featureflags\services;
 
+use function CraftCms\Cms\{currentUser, t};
 use Craft;
 use craft\base\Component;
 use craft\db\Query;
-use craft\helpers\DateTimeHelper;
+use CraftCms\Cms\Support\DateTimeHelper;
 use craft\helpers\Db;
-use craft\helpers\Json;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use craftquest\featureflags\FeatureFlags;
 use craftquest\featureflags\events\FlagEvent;
 use craftquest\featureflags\events\RegisterRuleTypesEvent;
@@ -30,7 +32,7 @@ class FlagService extends Component
     /** Fired after a flag is deleted. */
     public const EVENT_AFTER_DELETE_FLAG = 'afterDeleteFlag';
 
-    public const CACHE_VERSION = 4;
+    public const CACHE_VERSION = 5;
 
     private ?array $ruleTypesCache = null;
 
@@ -50,13 +52,13 @@ class FlagService extends Component
         }
 
         $ruleTypes = [
-            ['label' => Craft::t('feature-flags', 'User ID'), 'value' => 'user'],
-            ['label' => Craft::t('feature-flags', 'User Group'), 'value' => 'userGroup'],
-            ['label' => Craft::t('feature-flags', 'Environment'), 'value' => 'environment'],
+            ['label' => t('User ID', [], 'feature-flags'), 'value' => 'user'],
+            ['label' => t('User Group', [], 'feature-flags'), 'value' => 'userGroup'],
+            ['label' => t('Environment', [], 'feature-flags'), 'value' => 'environment'],
         ];
 
         if (class_exists(Subscription::class)) {
-            $ruleTypes[] = ['label' => Craft::t('feature-flags', 'Subscription Plan'), 'value' => 'subscriptionPlan'];
+            $ruleTypes[] = ['label' => t('Subscription Plan', [], 'feature-flags'), 'value' => 'subscriptionPlan'];
         }
 
         $event = new RegisterRuleTypesEvent();
@@ -98,7 +100,7 @@ class FlagService extends Component
      */
     public function getExpiredFlags(): array
     {
-        $now = DateTimeHelper::currentUTCDateTime();
+        $now = now('UTC');
         $records = FlagRecord::find()
             ->where(['not', ['expiresAt' => null]])
             ->andWhere(['<', 'expiresAt', $now->format('Y-m-d H:i:s')])
@@ -180,7 +182,7 @@ class FlagService extends Component
             if (!$record->save()) {
                 $flag->addErrors($record->getErrors());
                 $transaction->rollBack();
-                Craft::error('Failed to save flag record: ' . Json::encode($record->errors), __METHOD__);
+                Log::error('Failed to save flag record: ' . json_encode($record->errors));
                 return false;
             }
 
@@ -196,7 +198,7 @@ class FlagService extends Component
 
                 if (!$ruleRecord->save()) {
                     $transaction->rollBack();
-                    Craft::error('Failed to save rule record: ' . Json::encode($ruleRecord->errors), __METHOD__);
+                    Log::error('Failed to save rule record: ' . json_encode($ruleRecord->errors));
                     return false;
                 }
 
@@ -215,7 +217,7 @@ class FlagService extends Component
 
                     if (!$flagSiteRecord->save()) {
                         $transaction->rollBack();
-                        Craft::error('Failed to save flag site record: ' . Json::encode($flagSiteRecord->errors), __METHOD__);
+                        Log::error('Failed to save flag site record: ' . json_encode($flagSiteRecord->errors));
                         return false;
                     }
                 }
@@ -224,7 +226,7 @@ class FlagService extends Component
             $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
-            Craft::error('Failed to save flag: ' . $e->getMessage(), __METHOD__);
+            Log::error('Failed to save flag: ' . $e->getMessage());
             throw $e;
         }
 
@@ -267,7 +269,7 @@ class FlagService extends Component
             $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
-            Craft::error('Failed to delete flag: ' . $e->getMessage(), __METHOD__);
+            Log::error('Failed to delete flag: ' . $e->getMessage());
             throw $e;
         }
 
@@ -294,13 +296,13 @@ class FlagService extends Component
             $record->enabled = $enabled;
             if (!$record->save()) {
                 $transaction->rollBack();
-                Craft::error('Failed to toggle flag: ' . Json::encode($record->getErrors()), __METHOD__);
+                Log::error('Failed to toggle flag: ' . json_encode($record->getErrors()));
                 return false;
             }
             $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
-            Craft::error('Failed to toggle flag: ' . $e->getMessage(), __METHOD__);
+            Log::error('Failed to toggle flag: ' . $e->getMessage());
             throw $e;
         }
 
@@ -397,17 +399,17 @@ class FlagService extends Component
 
         $audit = new AuditRecord();
         $audit->flagId = $flagId;
-        $audit->userId = Craft::$app->getUser()->getId();
+        $audit->userId = currentUser()?->getCraftUserId();
         $audit->action = $action;
-        $audit->details = Json::encode($details);
+        $audit->details = json_encode($details);
         if (!$audit->save()) {
-            Craft::error('Failed to save audit record: ' . Json::encode($audit->getErrors()), __METHOD__);
+            Log::error('Failed to save audit record: ' . json_encode($audit->getErrors()));
         }
     }
 
     private function invalidateCache(string $flagHandle): void
     {
-        Craft::$app->getCache()->delete(self::cacheKey($flagHandle));
+        Cache::forget(self::cacheKey($flagHandle));
 
         // Results already evaluated in this process (a queue worker, a daemon, or the request
         // that made the change) would otherwise keep returning the old answer.
