@@ -21,10 +21,4 @@ class AuditRecord extends BaseModel
     public const TABLE = 'featureflags_audit';
 
     protected $table = self::TABLE;
-
-    /** Yii-style table name, used by the migrations. */
-    public static function tableName(): string
-    {
-        return '{{%' . self::TABLE . '}}';
-    }
 }

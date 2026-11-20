@@ -1,23 +1,20 @@
 <?php
 
-namespace craftquest\featureflags\migrations;
-
-use craft\db\Migration;
+use CraftCms\Cms\Database\Migration;
 use craftquest\featureflags\records\FlagRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-class m250515_000000_change_rollout_percentage_to_smallint extends Migration
+/**
+ * 1.0.1: rolloutPercentage becomes a smallint. Already applied on installs upgraded from 1.x;
+ * new installs record it as applied without running it.
+ */
+return new class extends Migration
 {
-    public function safeUp(): bool
+    public function up(): void
     {
-        $this->alterColumn(FlagRecord::tableName(), 'rolloutPercentage', $this->smallInteger()->defaultValue(null));
-
-        return true;
+        Schema::table(FlagRecord::TABLE, function (Blueprint $table) {
+            $table->smallInteger('rolloutPercentage')->nullable()->change();
+        });
     }
-
-    public function safeDown(): bool
-    {
-        $this->alterColumn(FlagRecord::tableName(), 'rolloutPercentage', $this->tinyInteger()->unsigned()->defaultValue(null));
-
-        return true;
-    }
-}
+};

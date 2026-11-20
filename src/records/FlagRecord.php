@@ -36,12 +36,6 @@ class FlagRecord extends BaseModel
         'expiresAt' => 'datetime',
     ];
 
-    /** Yii-style table name, used by the migrations. */
-    public static function tableName(): string
-    {
-        return '{{%' . self::TABLE . '}}';
-    }
-
     public function rules(): HasMany
     {
         return $this->hasMany(RuleRecord::class, 'flagId')->orderBy('id');

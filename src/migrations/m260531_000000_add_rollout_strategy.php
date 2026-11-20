@@ -1,36 +1,25 @@
 <?php
 
-namespace craftquest\featureflags\migrations;
-
-use craft\db\Migration;
+use CraftCms\Cms\Database\Migration;
 use craftquest\featureflags\records\FlagRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-class m260531_000000_add_rollout_strategy extends Migration
+/**
+ * 1.1.0: rollout strategy per flag. Already applied on installs upgraded from 1.x;
+ * new installs record it as applied without running it.
+ */
+return new class extends Migration
 {
-    public function safeUp(): bool
+    public function up(): void
     {
-        $table = FlagRecord::tableName();
-
-        if (!$this->db->columnExists($table, 'rolloutStrategy')) {
-            // 'all' (default) preserves existing behavior: rules and rollout are independent.
-            $this->addColumn(
-                $table,
-                'rolloutStrategy',
-                $this->string(10)->notNull()->defaultValue('all')->after('rolloutPercentage')
-            );
+        if (Schema::hasColumn(FlagRecord::TABLE, 'rolloutStrategy')) {
+            return;
         }
 
-        return true;
+        // 'all' (default) preserves existing behavior: rules and rollout are independent.
+        Schema::table(FlagRecord::TABLE, function (Blueprint $table) {
+            $table->string('rolloutStrategy', 10)->default('all')->after('rolloutPercentage');
+        });
     }
-
-    public function safeDown(): bool
-    {
-        $table = FlagRecord::tableName();
-
-        if ($this->db->columnExists($table, 'rolloutStrategy')) {
-            $this->dropColumn($table, 'rolloutStrategy');
-        }
-
-        return true;
-    }
-}
+};

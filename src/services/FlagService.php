@@ -3,7 +3,6 @@
 namespace craftquest\featureflags\services;
 
 use function CraftCms\Cms\{currentUser, t};
-use craft\base\Component;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +21,7 @@ use craftquest\featureflags\records\FlagRecord;
 use craftquest\featureflags\records\FlagSiteRecord;
 use craftquest\featureflags\records\RuleRecord;
 
-class FlagService extends Component
+class FlagService
 {
     public const CACHE_VERSION = 5;
 

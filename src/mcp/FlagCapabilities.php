@@ -448,7 +448,7 @@ class FlagCapabilities
 
         if (!$flagService->saveFlag($flag)) {
             $errors = [];
-            foreach ($flag->getErrors() as $attribute => $messages) {
+            foreach ($flag->errors()->getMessages() as $attribute => $messages) {
                 foreach ($messages as $message) {
                     $errors[] = "{$attribute}: {$message}";
                 }

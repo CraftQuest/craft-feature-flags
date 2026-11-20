@@ -1,43 +1,35 @@
 <?php
 
-namespace craftquest\featureflags\migrations;
-
-use craft\db\Migration;
+use CraftCms\Cms\Database\Migration;
 use craftquest\featureflags\records\FlagRecord;
 use craftquest\featureflags\records\FlagSiteRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-class m260529_000000_add_multisite_support extends Migration
+/**
+ * 1.1.0: per-site flag settings. Already applied on installs upgraded from 1.x;
+ * new installs record it as applied without running it.
+ */
+return new class extends Migration
 {
-    public function safeUp(): bool
+    public function up(): void
     {
-        $flagsTable = FlagRecord::tableName();
-        $sitesTable = FlagSiteRecord::tableName();
-
-        if (!$this->db->tableExists($sitesTable)) {
-            $this->createTable($sitesTable, [
-                'id' => $this->primaryKey(),
-                'flagId' => $this->integer()->notNull(),
-                'siteId' => $this->integer()->notNull(),
-                'enabled' => $this->boolean()->notNull()->defaultValue(true),
-                'dateCreated' => $this->dateTime()->notNull(),
-                'dateUpdated' => $this->dateTime()->notNull(),
-                'uid' => $this->uid(),
-            ]);
-
-            $this->createIndex(null, $sitesTable, ['flagId', 'siteId'], true);
-            $this->createIndex(null, $sitesTable, 'siteId', false);
-
-            $this->addForeignKey(null, $sitesTable, 'flagId', $flagsTable, 'id', 'CASCADE');
-            $this->addForeignKey(null, $sitesTable, 'siteId', '{{%sites}}', 'id', 'CASCADE');
+        if (Schema::hasTable(FlagSiteRecord::TABLE)) {
+            return;
         }
 
-        return true;
-    }
+        Schema::create(FlagSiteRecord::TABLE, function (Blueprint $table) {
+            $table->integer('id', true);
+            $table->integer('flagId');
+            $table->integer('siteId')->index();
+            $table->boolean('enabled')->default(true);
+            $table->dateTime('dateCreated');
+            $table->dateTime('dateUpdated');
+            $table->char('uid', 36)->default('0');
 
-    public function safeDown(): bool
-    {
-        $this->dropTableIfExists(FlagSiteRecord::tableName());
-
-        return true;
+            $table->unique(['flagId', 'siteId']);
+            $table->foreign('flagId')->references('id')->on(FlagRecord::TABLE)->cascadeOnDelete();
+            $table->foreign('siteId')->references('id')->on('sites')->cascadeOnDelete();
+        });
     }
-}
+};

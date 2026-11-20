@@ -1,32 +1,25 @@
 <?php
 
-namespace craftquest\featureflags\migrations;
-
-use craft\db\Migration;
+use CraftCms\Cms\Database\Migration;
 use craftquest\featureflags\records\FlagRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-class m260928_000000_add_starts_at extends Migration
+/**
+ * 1.2.0: optional start date. Already applied on installs upgraded from 1.x;
+ * new installs record it as applied without running it.
+ */
+return new class extends Migration
 {
-    public function safeUp(): bool
+    public function up(): void
     {
-        $table = FlagRecord::tableName();
-
-        if (!$this->db->columnExists($table, 'startsAt')) {
-            // Nullable: existing flags have no start date and keep evaluating as before.
-            $this->addColumn($table, 'startsAt', $this->dateTime()->after('flagType'));
+        if (Schema::hasColumn(FlagRecord::TABLE, 'startsAt')) {
+            return;
         }
 
-        return true;
+        // Nullable: existing flags have no start date and keep evaluating as before.
+        Schema::table(FlagRecord::TABLE, function (Blueprint $table) {
+            $table->dateTime('startsAt')->nullable()->after('flagType');
+        });
     }
-
-    public function safeDown(): bool
-    {
-        $table = FlagRecord::tableName();
-
-        if ($this->db->columnExists($table, 'startsAt')) {
-            $this->dropColumn($table, 'startsAt');
-        }
-
-        return true;
-    }
-}
+};

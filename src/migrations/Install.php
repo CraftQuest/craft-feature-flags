@@ -2,139 +2,94 @@
 
 namespace craftquest\featureflags\migrations;
 
-use Craft;
-use craft\db\Migration;
+use CraftCms\Cms\Database\Migration;
 use craftquest\featureflags\records\AuditRecord;
 use craftquest\featureflags\records\FlagRecord;
 use craftquest\featureflags\records\FlagSiteRecord;
 use craftquest\featureflags\records\RuleRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
+/**
+ * Creates the Feature Flags tables. The schema matches 1.x exactly, so installs upgraded from
+ * Craft 5 keep their data and run no further migrations.
+ */
 class Install extends Migration
 {
-    public function safeUp(): bool
+    public function up(): void
     {
-        $this->createFlagsTable();
-        $this->createFlagSitesTable();
-        $this->createRulesTable();
-        $this->createAuditTable();
-
-        Craft::$app->db->schema->refresh();
-
-        return true;
-    }
-
-    public function safeDown(): bool
-    {
-        $this->dropTableIfExists(AuditRecord::tableName());
-        $this->dropTableIfExists(RuleRecord::tableName());
-        $this->dropTableIfExists(FlagSiteRecord::tableName());
-        $this->dropTableIfExists(FlagRecord::tableName());
-
-        return true;
-    }
-
-    private function createFlagsTable(): void
-    {
-        $table = FlagRecord::tableName();
-
-        if ($this->db->tableExists($table)) {
-            return;
+        if (!Schema::hasTable(FlagRecord::TABLE)) {
+            Schema::create(FlagRecord::TABLE, function (Blueprint $table) {
+                $table->integer('id', true);
+                $table->string('name', 100);
+                $table->string('handle', 100)->unique();
+                $table->text('description')->nullable();
+                $table->boolean('enabled')->default(false)->index();
+                $table->smallInteger('rolloutPercentage')->nullable();
+                $table->string('rolloutStrategy', 10)->default('all');
+                $table->string('flagType', 20)->default('release')->index();
+                $table->dateTime('startsAt')->nullable();
+                $table->dateTime('expiresAt')->nullable();
+                $table->dateTime('dateCreated');
+                $table->dateTime('dateUpdated');
+                $table->char('uid', 36)->default('0');
+            });
         }
 
-        $this->createTable($table, [
-            'id' => $this->primaryKey(),
-            'name' => $this->string(100)->notNull(),
-            'handle' => $this->string(100)->notNull(),
-            'description' => $this->text(),
-            'enabled' => $this->boolean()->notNull()->defaultValue(false),
-            'rolloutPercentage' => $this->smallInteger()->defaultValue(null),
-            'rolloutStrategy' => $this->string(10)->notNull()->defaultValue('all'),
-            'flagType' => $this->string(20)->notNull()->defaultValue('release'),
-            'startsAt' => $this->dateTime(),
-            'expiresAt' => $this->dateTime(),
-            'dateCreated' => $this->dateTime()->notNull(),
-            'dateUpdated' => $this->dateTime()->notNull(),
-            'uid' => $this->uid(),
-        ]);
+        if (!Schema::hasTable(FlagSiteRecord::TABLE)) {
+            Schema::create(FlagSiteRecord::TABLE, function (Blueprint $table) {
+                $table->integer('id', true);
+                $table->integer('flagId');
+                $table->integer('siteId')->index();
+                $table->boolean('enabled')->default(true);
+                $table->dateTime('dateCreated');
+                $table->dateTime('dateUpdated');
+                $table->char('uid', 36)->default('0');
 
-        $this->createIndex(null, $table, 'handle', true);
-        $this->createIndex(null, $table, 'enabled', false);
-        $this->createIndex(null, $table, 'flagType', false);
-    }
-
-    private function createFlagSitesTable(): void
-    {
-        $table = FlagSiteRecord::tableName();
-
-        if ($this->db->tableExists($table)) {
-            return;
+                $table->unique(['flagId', 'siteId']);
+                $table->foreign('flagId')->references('id')->on(FlagRecord::TABLE)->cascadeOnDelete();
+                $table->foreign('siteId')->references('id')->on('sites')->cascadeOnDelete();
+            });
         }
 
-        $this->createTable($table, [
-            'id' => $this->primaryKey(),
-            'flagId' => $this->integer()->notNull(),
-            'siteId' => $this->integer()->notNull(),
-            'enabled' => $this->boolean()->notNull()->defaultValue(true),
-            'dateCreated' => $this->dateTime()->notNull(),
-            'dateUpdated' => $this->dateTime()->notNull(),
-            'uid' => $this->uid(),
-        ]);
+        if (!Schema::hasTable(RuleRecord::TABLE)) {
+            Schema::create(RuleRecord::TABLE, function (Blueprint $table) {
+                $table->integer('id', true);
+                $table->integer('flagId')->index();
+                $table->string('ruleType', 50);
+                $table->string('ruleValue', 255);
+                $table->dateTime('dateCreated');
+                $table->dateTime('dateUpdated');
+                $table->char('uid', 36)->default('0');
 
-        $this->createIndex(null, $table, ['flagId', 'siteId'], true);
-        $this->createIndex(null, $table, 'siteId', false);
-
-        $this->addForeignKey(null, $table, 'flagId', FlagRecord::tableName(), 'id', 'CASCADE');
-        $this->addForeignKey(null, $table, 'siteId', '{{%sites}}', 'id', 'CASCADE');
-    }
-
-    private function createRulesTable(): void
-    {
-        $table = RuleRecord::tableName();
-
-        if ($this->db->tableExists($table)) {
-            return;
+                $table->index(['flagId', 'ruleType']);
+                $table->foreign('flagId')->references('id')->on(FlagRecord::TABLE)->cascadeOnDelete();
+            });
         }
 
-        $this->createTable($table, [
-            'id' => $this->primaryKey(),
-            'flagId' => $this->integer()->notNull(),
-            'ruleType' => $this->string(50)->notNull(),
-            'ruleValue' => $this->string(255)->notNull(),
-            'dateCreated' => $this->dateTime()->notNull(),
-            'dateUpdated' => $this->dateTime()->notNull(),
-            'uid' => $this->uid(),
-        ]);
+        if (!Schema::hasTable(AuditRecord::TABLE)) {
+            Schema::create(AuditRecord::TABLE, function (Blueprint $table) {
+                $table->integer('id', true);
+                $table->integer('flagId')->nullable()->index();
+                $table->integer('userId')->nullable()->index();
+                $table->string('action', 50);
+                $table->text('details')->nullable();
+                $table->dateTime('dateCreated')->index();
+                $table->dateTime('dateUpdated');
+                $table->char('uid', 36)->default('0');
 
-        $this->createIndex(null, $table, 'flagId', false);
-        $this->createIndex(null, $table, ['flagId', 'ruleType'], false);
-
-        $this->addForeignKey(null, $table, 'flagId', FlagRecord::tableName(), 'id', 'CASCADE');
+                // Audit history outlives the flag and the user who made the change.
+                $table->foreign('flagId')->references('id')->on(FlagRecord::TABLE)->nullOnDelete();
+                $table->foreign('userId')->references('id')->on('users')->nullOnDelete();
+            });
+        }
     }
 
-    private function createAuditTable(): void
+    public function down(): void
     {
-        $table = AuditRecord::tableName();
-
-        if ($this->db->tableExists($table)) {
-            return;
-        }
-
-        $this->createTable($table, [
-            'id' => $this->primaryKey(),
-            'flagId' => $this->integer(),
-            'userId' => $this->integer(),
-            'action' => $this->string(50)->notNull(),
-            'details' => $this->text(),
-            'dateCreated' => $this->dateTime()->notNull(),
-            'dateUpdated' => $this->dateTime()->notNull(),
-            'uid' => $this->uid(),
-        ]);
-
-        $this->createIndex(null, $table, 'flagId', false);
-        $this->createIndex(null, $table, 'userId', false);
-        $this->createIndex(null, $table, 'dateCreated', false);
-
-        $this->addForeignKey(null, $table, 'flagId', FlagRecord::tableName(), 'id', 'SET NULL');
-        $this->addForeignKey(null, $table, 'userId', '{{%users}}', 'id', 'SET NULL');
+        Schema::dropIfExists(AuditRecord::TABLE);
+        Schema::dropIfExists(RuleRecord::TABLE);
+        Schema::dropIfExists(FlagSiteRecord::TABLE);
+        Schema::dropIfExists(FlagRecord::TABLE);
     }
 }

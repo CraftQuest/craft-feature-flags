@@ -3,7 +3,6 @@
 namespace craftquest\featureflags\services;
 
 use function CraftCms\Cms\{currentUserElement};
-use craft\base\Component;
 use craft\commerce\elements\Subscription;
 use CraftCms\Cms\Site\Data\Site;
 use CraftCms\Cms\Support\Facades\Sites;
@@ -17,7 +16,7 @@ use Illuminate\Support\Facades\Event;
 use craftquest\featureflags\models\Flag;
 use craftquest\featureflags\models\Rule;
 
-class EvaluationService extends Component
+class EvaluationService
 {
     private array $requestCache = [];
     private array $userGroupsCache = [];

@@ -22,10 +22,4 @@ class FlagSiteRecord extends BaseModel
     protected $table = self::TABLE;
 
     protected $casts = ['flagId' => 'integer', 'siteId' => 'integer', 'enabled' => 'bool'];
-
-    /** Yii-style table name, used by the migrations. */
-    public static function tableName(): string
-    {
-        return '{{%' . self::TABLE . '}}';
-    }
 }

@@ -2,13 +2,17 @@
 
 namespace craftquest\featureflags\models;
 
-use Craft;
-use craft\base\Model;
+use CraftCms\Cms\Component\Component;
 use craftquest\featureflags\enums\FlagType;
 use craftquest\featureflags\FeatureFlags;
+use craftquest\featureflags\records\FlagRecord;
 use DateTime;
+use Illuminate\Validation\Rule as ValidationRule;
+use Illuminate\Validation\Validator;
 
-class Flag extends Model
+use function CraftCms\Cms\t;
+
+class Flag extends Component
 {
     public ?int $id = null;
     public ?string $name = null;
@@ -97,61 +101,76 @@ class Flag extends Model
         return $flag;
     }
 
-    public function safeAttributes(): array
-    {
-        return ['name', 'handle', 'description', 'enabled', 'rolloutPercentage', 'rolloutStrategy', 'flagType', 'startsAt', 'expiresAt', 'rules', 'siteSettings'];
-    }
-
-    protected function defineRules(): array
+    public function getRules(): array
     {
         return [
-            [['name', 'handle', 'flagType'], 'required'],
-            [['name'], 'string', 'max' => 100],
-            [['handle'], 'string', 'max' => 100],
-            [['handle'], 'match', 'pattern' => '/^[a-z][a-z0-9\-]*$/', 'message' => Craft::t('feature-flags', 'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.')],
-            [['handle'], function ($attribute) {
-                $taken = \craftquest\featureflags\records\FlagRecord::query()
-                    ->where('handle', $this->$attribute)
-                    ->when($this->id, fn($query) => $query->whereKeyNot($this->id))
-                    ->exists();
-                if ($taken) {
-                    $this->addError($attribute, Craft::t('feature-flags', 'This handle is already in use.'));
-                }
-            }],
-            [['description'], 'string', 'max' => 2000],
-            [['enabled'], 'boolean'],
-            [['rolloutPercentage'], 'integer', 'min' => 0, 'max' => 100, 'skipOnEmpty' => true],
-            [['rolloutStrategy'], 'in', 'range' => ['all', 'rule']],
-            [['flagType'], 'in', 'range' => array_column(FlagType::cases(), 'value')],
-            [['startsAt', 'expiresAt'], 'safe'],
-            [['expiresAt'], function ($attribute) {
-                if ($this->startsAt !== null && $this->expiresAt !== null && $this->expiresAt <= $this->startsAt) {
-                    $this->addError($attribute, Craft::t('feature-flags', 'The expiration date must be after the start date.'));
-                }
-            }],
-            [['siteSettings'], function ($attribute) {
-                // "Specific sites" mode with every site switched off would gate the flag
-                // off everywhere with no indication in the CP. Require at least one site.
-                $settings = $this->$attribute;
-                if (is_array($settings) && $settings !== [] && !in_array(true, $settings, true)) {
-                    $this->addError($attribute, Craft::t('feature-flags', 'Select at least one site, or choose “All sites”.'));
-                }
-            }],
-            [['rules'], function ($attribute) {
-                $allowedRuleTypes = FeatureFlags::getInstance()->flagService->getRuleTypeValues();
-                foreach ($this->$attribute as $i => $rule) {
-                    if (!$rule->validate()) {
-                        foreach ($rule->getErrors() as $field => $errors) {
-                            foreach ($errors as $error) {
-                                $this->addError("rules[{$i}].{$field}", $error);
-                            }
-                        }
-                    }
-                    if ($rule->ruleType !== null && !in_array($rule->ruleType, $allowedRuleTypes, true)) {
-                        $this->addError("rules[{$i}].ruleType", Craft::t('feature-flags', 'Unknown rule type: {type}.', ['type' => $rule->ruleType]));
-                    }
-                }
-            }],
+            'name' => ['required', 'string', 'max:100'],
+            'handle' => [
+                'required',
+                'string',
+                'max:100',
+                'regex:/^[a-z][a-z0-9\-]*$/',
+                ValidationRule::unique(FlagRecord::TABLE, 'handle')->ignore($this->id),
+            ],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'enabled' => ['boolean'],
+            'rolloutPercentage' => ['nullable', 'integer', 'between:0,100'],
+            'rolloutStrategy' => ['required', 'in:all,rule'],
+            'flagType' => ['required', ValidationRule::enum(FlagType::class)],
+            'startsAt' => ['nullable', 'date'],
+            'expiresAt' => ['nullable', 'date'],
         ];
+    }
+
+    public function getMessages(): array
+    {
+        return [
+            'handle.regex' => t('Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.', [], 'feature-flags'),
+            'handle.unique' => t('This handle is already in use.', [], 'feature-flags'),
+        ];
+    }
+
+    /**
+     * Cross-field checks Laravel's rules can't express: the schedule window, site scope, and
+     * targeting rules (each rule's own fields, and that its type is registered).
+     */
+    public function afterValidate(?Validator $validator = null): void
+    {
+        $errors = $this->errors();
+
+        if ($this->startsAt !== null && $this->expiresAt !== null && $this->expiresAt <= $this->startsAt) {
+            $errors->add('expiresAt', t('The expiration date must be after the start date.', [], 'feature-flags'));
+        }
+
+        // "Specific sites" mode with every site switched off would gate the flag off
+        // everywhere with no indication in the CP. Require at least one site.
+        if (is_array($this->siteSettings) && $this->siteSettings !== [] && !in_array(true, $this->siteSettings, true)) {
+            $errors->add('siteSettings', t('Select at least one site, or choose “All sites”.', [], 'feature-flags'));
+        }
+
+        $allowedRuleTypes = FeatureFlags::getInstance()->flagService->getRuleTypeValues();
+        foreach ($this->rules as $i => $rule) {
+            if (!$rule->validate()) {
+                foreach ($rule->errors()->getMessages() as $field => $messages) {
+                    foreach ($messages as $message) {
+                        $errors->add("rules.{$i}.{$field}", $message);
+                    }
+                }
+            }
+            if ($rule->ruleType !== null && !in_array($rule->ruleType, $allowedRuleTypes, true)) {
+                $errors->add("rules.{$i}.ruleType", t('Unknown rule type: {type}.', ['type' => $rule->ruleType], 'feature-flags'));
+            }
+        }
+    }
+
+    /**
+     * Validate scalar attributes only; rules and site settings are checked in afterValidate().
+     */
+    public function validationData(): array
+    {
+        $data = parent::validationData();
+        unset($data['rules'], $data['siteSettings']);
+
+        return $data;
     }
 }

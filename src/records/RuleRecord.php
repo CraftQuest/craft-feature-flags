@@ -20,10 +20,4 @@ class RuleRecord extends BaseModel
     protected $table = self::TABLE;
 
     protected $casts = ['flagId' => 'integer'];
-
-    /** Yii-style table name, used by the migrations. */
-    public static function tableName(): string
-    {
-        return '{{%' . self::TABLE . '}}';
-    }
 }

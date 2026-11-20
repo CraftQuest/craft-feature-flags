@@ -2,156 +2,150 @@
 
 namespace craftquest\featureflags;
 
-use Craft;
-use craft\base\Model;
-use craft\base\Plugin;
-use craft\events\RegisterUrlRulesEvent;
-use craft\events\RegisterUserPermissionsEvent;
-use craft\services\UserPermissions;
-use craft\web\twig\variables\CraftVariable;
-use craft\web\UrlManager;
-use craft\helpers\UrlHelper;
+use CraftCms\Cms\Cp\Data\NavItem;
+use CraftCms\Cms\Mcp\CapabilityRegistry;
+use CraftCms\Cms\Mcp\Events\CollectingAdminInstructions;
+use CraftCms\Cms\Mcp\Events\CollectingServerInstructions;
+use CraftCms\Cms\Mcp\Events\DiscoveringCapability;
+use CraftCms\Cms\Plugin\Plugin;
+use CraftCms\Cms\Plugin\PluginSettings;
+use CraftCms\Cms\Twig\Variables\CraftVariable;
+use CraftCms\Cms\User\Data\Permission;
+use craftquest\featureflags\console;
 use craftquest\featureflags\mcp\FlagCapabilities;
 use craftquest\featureflags\models\Settings;
 use craftquest\featureflags\services\EvaluationService;
 use craftquest\featureflags\services\FlagService;
 use craftquest\featureflags\variables\FeatureFlagVariable;
-use yii\base\Event;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Support\Facades\Event;
+use Mcp\Capability\Registry\ToolReference;
+
+use function CraftCms\Cms\currentUser;
+use function CraftCms\Cms\t;
 
 /**
- * Feature Flags Plugin
+ * Feature Flags for Craft CMS 6.
+ *
+ * Services are resolved from the container. `FeatureFlags::getInstance()->flagService` and
+ * `->evaluationService` keep working, so templates, modules, and other plugins written for
+ * 1.x don't need to change how they reach them.
  *
  * @author CraftQuest
  * @since 1.0.0
  *
  * @method Settings getSettings()
- * @property-read FlagService $flagService
- * @property-read EvaluationService $evaluationService
  */
-class FeatureFlags extends Plugin
+final class FeatureFlags extends Plugin
 {
     public string $schemaVersion = '1.2.0';
     public bool $hasCpSection = true;
     public bool $hasCpSettings = true;
+    public bool $hasReadOnlyCpSettings = true;
 
-    public static function config(): array
-    {
-        return [
-            'components' => [
-                'flagService' => FlagService::class,
-                'evaluationService' => EvaluationService::class,
-            ],
-        ];
+    /** @var array<class-string> Artisan commands; each keeps its Craft 5 name as an alias. */
+    protected array $commands = [
+        console\ListCommand::class,
+        console\InfoCommand::class,
+        console\EnableCommand::class,
+        console\DisableCommand::class,
+        console\DeleteCommand::class,
+        console\CreateCommand::class,
+        console\SetRolloutCommand::class,
+        console\CleanupExpiredCommand::class,
+    ];
+
+    public FlagService $flagService {
+        get => $this->app->make(FlagService::class);
     }
 
-    public function init(): void
-    {
-        parent::init();
-
-        if (Craft::$app instanceof \craft\console\Application) {
-            $this->controllerNamespace = 'craftquest\featureflags\console\controllers';
-        }
-
-        $this->registerCpRoutes();
-        $this->registerVariables();
-        $this->registerPermissions();
-        $this->registerQueueHooks();
-
-        $this->registerMcp();
+    public EvaluationService $evaluationService {
+        get => $this->app->make(EvaluationService::class);
     }
 
-    public function getCpNavItem(): ?array
-    {
-        $item = parent::getCpNavItem();
-
-        $settings = $this->getSettings();
-        $item['label'] = $settings->pluginName ?: Craft::t('feature-flags', 'Feature Flags');
-        $item['url'] = 'feature-flags';
-
-        $item['subnav'] = [
-            'flags' => [
-                'label' => Craft::t('feature-flags', 'All Flags'),
-                'url' => 'feature-flags',
-            ],
-            'audit' => [
-                'label' => Craft::t('feature-flags', 'Audit Log'),
-                'url' => 'feature-flags/audit',
-            ],
-        ];
-
-        if (Craft::$app->getUser()->getIsAdmin()) {
-            $item['subnav']['settings'] = [
-                'label' => Craft::t('feature-flags', 'Settings'),
-                'url' => 'feature-flags/settings',
-            ];
-        }
-
-        return $item;
-    }
-
-    protected function createSettingsModel(): ?Model
+    protected static function createSettings(): ?PluginSettings
     {
         return new Settings();
     }
 
-    public function getSettingsResponse(): mixed
+    public function register(): void
     {
-        return Craft::$app->getResponse()->redirect(UrlHelper::cpUrl('feature-flags/settings'));
+        $this->app->singleton(FlagService::class);
+
+        // Evaluation results and the anonymous visitor ID are per request. Scoped instances
+        // are discarded between requests and before every queue job.
+        $this->app->scoped(EvaluationService::class);
     }
 
-    protected function settingsHtml(): ?string
+    public function boot(): void
     {
-        return Craft::$app->getView()->renderTemplate('feature-flags/_settings', [
-            'settings' => $this->getSettings(),
-        ]);
+        // `craft.featureFlags` in Twig. Macro closures are bound to the CraftVariable, so resolve
+        // through the app() helper rather than $this.
+        CraftVariable::macro('featureFlags', fn() => app(FeatureFlagVariable::class));
+
+        // Jobs run in the request that dispatched them (e.g. the sync queue) share its
+        // scoped instance, so clear evaluation state explicitly too.
+        Event::listen(JobProcessing::class, fn() => $this->evaluationService->clearRequestCache());
+
+        $this->registerMcp();
     }
 
-    private function registerCpRoutes(): void
+    protected function getPermissions(): array
     {
-        Event::on(
-            UrlManager::class,
-            UrlManager::EVENT_REGISTER_CP_URL_RULES,
-            function (RegisterUrlRulesEvent $event) {
-                $event->rules['feature-flags'] = 'feature-flags/flags/index';
-                $event->rules['feature-flags/new'] = 'feature-flags/flags/edit';
-                $event->rules['feature-flags/<flagId:\\d+>'] = 'feature-flags/flags/edit';
-                $event->rules['feature-flags/audit'] = 'feature-flags/flags/audit';
-                $event->rules['feature-flags/audit/<flagId:\\d+>'] = 'feature-flags/flags/audit';
-                $event->rules['feature-flags/settings'] = 'feature-flags/flags/settings';
-            }
-        );
+        return [
+            new Permission(
+                key: 'featureFlags:view',
+                label: t('View feature flags', [], 'feature-flags'),
+                nested: collect([
+                    new Permission(
+                        key: 'featureFlags:toggle',
+                        label: t('Toggle feature flags on and off', [], 'feature-flags'),
+                        info: t('Flip the master switch from the flag list without editing rules, rollout, or sites.', [], 'feature-flags'),
+                    ),
+                    new Permission(
+                        key: 'featureFlags:manage',
+                        label: t('Manage feature flags', [], 'feature-flags'),
+                    ),
+                ]),
+            ),
+        ];
     }
 
-    private function registerVariables(): void
+    public function getCpNavItem(): NavItem
     {
-        Event::on(
-            CraftVariable::class,
-            CraftVariable::EVENT_INIT,
-            function (Event $event) {
-                /** @var CraftVariable $variable */
-                $variable = $event->sender;
-                $variable->set('featureFlags', FeatureFlagVariable::class);
-            }
-        );
+        $subnav = [
+            new NavItem()->label(t('All Flags', [], 'feature-flags'))->href('feature-flags'),
+            new NavItem()->label(t('Audit Log', [], 'feature-flags'))->href('feature-flags/audit'),
+        ];
+
+        if (currentUser()?->isAdmin()) {
+            $subnav[] = new NavItem()->label(t('Settings', [], 'feature-flags'))->href('settings/plugins/feature-flags');
+        }
+
+        return parent::getCpNavItem()
+            ->label($this->getSettings()->pluginName ?: t('Feature Flags', [], 'feature-flags'))
+            ->href('feature-flags')
+            ->subnav($subnav);
     }
 
-    /**
-     * Registers the MCP tools with Craft 6's capability registry and listens for its
-     * (Laravel) MCP events. The acting MCP user comes from the request, not Yii's session.
-     */
+    protected function cpNavIconPath(): ?string
+    {
+        return __DIR__ . '/icon-mask.svg';
+    }
+
     private function registerMcp(): void
     {
-        app(\CraftCms\Cms\Mcp\CapabilityRegistry::class)->register(FlagCapabilities::class);
+        $this->app->make(CapabilityRegistry::class)->register(FlagCapabilities::class);
 
         // Toggling is allowed with either the toggle or the manage permission, which
         // #[RequiresPermission] can't express (it requires all listed permissions).
         // Hide the toggle tool from users who have neither; the tool re-checks on call.
-        \Illuminate\Support\Facades\Event::listen(
-            \CraftCms\Cms\Mcp\Events\DiscoveringCapability::class,
-            function (\CraftCms\Cms\Mcp\Events\DiscoveringCapability $event) {
+        Event::listen(
+            DiscoveringCapability::class,
+            function (DiscoveringCapability $event) {
                 $reference = $event->reference;
                 if (
-                    $reference instanceof \Mcp\Capability\Registry\ToolReference
+                    $reference instanceof ToolReference
                     && $reference->tool->name === FlagCapabilities::TOGGLE_TOOL
                     && !FlagCapabilities::canToggle($event->user)
                 ) {
@@ -161,20 +155,20 @@ class FeatureFlags extends Plugin
         );
 
         // Short guidance sent to every connecting client that can see flags.
-        \Illuminate\Support\Facades\Event::listen(
-            \CraftCms\Cms\Mcp\Events\CollectingServerInstructions::class,
-            function (\CraftCms\Cms\Mcp\Events\CollectingServerInstructions $event) {
-                if (request()->craftUser()?->can('featureFlags:view')) {
+        Event::listen(
+            CollectingServerInstructions::class,
+            function (CollectingServerInstructions $event) {
+                if (currentUser()?->can('featureFlags:view')) {
                     $event->instructions[] = 'Feature Flags: use the feature_flags_* tools to inspect, evaluate, and change runtime feature flags. To disable a feature quickly, turn its flag off with feature_flags_toggle rather than deleting it.';
                 }
             }
         );
 
         // Fuller guidance returned by Craft's info_get tool.
-        \Illuminate\Support\Facades\Event::listen(
-            \CraftCms\Cms\Mcp\Events\CollectingAdminInstructions::class,
-            function (\CraftCms\Cms\Mcp\Events\CollectingAdminInstructions $event) {
-                if (!request()->craftUser()?->can('featureFlags:view')) {
+        Event::listen(
+            CollectingAdminInstructions::class,
+            function (CollectingAdminInstructions $event) {
+                if (!currentUser()?->can('featureFlags:view')) {
                     return;
                 }
 
@@ -187,58 +181,6 @@ class FeatureFlags extends Plugin
                     - Prefer feature_flags_toggle to switch a feature off; feature_flags_delete is permanent. feature_flags_update with rules replaces the whole rule list, so read the flag with feature_flags_get first.
                     - Every change is recorded in the audit log under the signed-in user (feature_flags_audit_log).
                     MARKDOWN;
-            }
-        );
-    }
-
-    /**
-     * A queue worker is one long-lived process, so the per-request evaluation cache would
-     * otherwise carry results (and a stale schedule window) from one job into the next.
-     * Start every job with a clean slate; flags themselves still come from the shared cache.
-     */
-    private function registerQueueHooks(): void
-    {
-        Event::on(
-            \yii\queue\Queue::class,
-            \yii\queue\Queue::EVENT_BEFORE_EXEC,
-            function () {
-                $this->evaluationService->clearRequestCache();
-            }
-        );
-
-        // Craft 6 runs jobs with Laravel's queue worker (`queue:work`), which doesn't fire
-        // the Yii queue event above.
-        \Illuminate\Support\Facades\Event::listen(
-            \Illuminate\Queue\Events\JobProcessing::class,
-            function () {
-                $this->evaluationService->clearRequestCache();
-            }
-        );
-    }
-
-    private function registerPermissions(): void
-    {
-        Event::on(
-            UserPermissions::class,
-            UserPermissions::EVENT_REGISTER_PERMISSIONS,
-            function (RegisterUserPermissionsEvent $event) {
-                $event->permissions[] = [
-                    'heading' => Craft::t('feature-flags', 'Feature Flags'),
-                    'permissions' => [
-                        'featureFlags:view' => [
-                            'label' => Craft::t('feature-flags', 'View feature flags'),
-                            'nested' => [
-                                'featureFlags:toggle' => [
-                                    'label' => Craft::t('feature-flags', 'Toggle feature flags on and off'),
-                                    'info' => Craft::t('feature-flags', 'Flip the master switch from the flag list without editing rules, rollout, or sites.'),
-                                ],
-                                'featureFlags:manage' => [
-                                    'label' => Craft::t('feature-flags', 'Manage feature flags'),
-                                ],
-                            ],
-                        ],
-                    ],
-                ];
             }
         );
     }
