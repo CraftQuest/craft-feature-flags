@@ -231,9 +231,11 @@ class EvaluationService extends Component
     /**
      * Evaluates a flag and explains the result, without touching the request cache.
      *
-     * Unlike isEnabled(), this never falls back to the logged-in user and never sets the
-     * anonymous visitor cookie: pass `$user` and/or `$bucketKey` explicitly. With neither,
-     * a percentage rollout has no bucket input and evaluates to off.
+     * Unlike isEnabled(), this uses only what you pass: it never falls back to the logged-in
+     * user, the anonymous visitor cookie, or the current request's site. With no `$user` or
+     * `$bucketKey`, a percentage rollout has no bucket input and evaluates to off. With no
+     * `$siteId`, a flag scoped to specific sites is gated off (on multi-site installs). This
+     * keeps the answer the same in every context (web, console, queue, MCP over HTTP or stdio).
      *
      * @return array{enabled: bool, reason: string, bucket: int|null, matchedRule: array{type: string|null, value: string|null}|null}
      *   `reason` is one of: not_found, disabled, site_gated, not_started, expired, global_on,
@@ -250,7 +252,7 @@ class EvaluationService extends Component
         return $this->evaluateWithReason($handle, $user, $bucketKey, $siteId, true)['enabled'];
     }
 
-    private function evaluateWithReason(string $handle, ?User $user, ?string $bucketKey, ?int $siteId, bool $useVisitorCookie): array
+    private function evaluateWithReason(string $handle, ?User $user, ?string $bucketKey, ?int $siteId, bool $useRequestContext): array
     {
         $flag = $this->getFlagFromCache($handle);
 
@@ -273,7 +275,13 @@ class EvaluationService extends Component
         // an invalid explicit siteId) are gated off — pass a valid siteId for a reliable
         // per-site answer outside web requests.
         $isMultiSite = Craft::$app->getIsMultiSite();
-        $site = $isMultiSite ? $this->resolveCurrentSite($siteId) : null;
+        // isEnabled() falls back to the current request's site; explain() uses only an explicit siteId.
+        $site = match (true) {
+            !$isMultiSite => null,
+            $useRequestContext => $this->resolveCurrentSite($siteId),
+            $siteId !== null => Craft::$app->getSites()->getSiteById($siteId),
+            default => null,
+        };
         if (self::isGatedOff($isMultiSite, $site?->id, $flag->siteSettings ?? [])) {
             return self::result(false, 'site_gated');
         }
@@ -291,17 +299,17 @@ class EvaluationService extends Component
         }
 
         if ($flag->rolloutStrategy === 'rule') {
-            return $this->evaluateRuleStrategy($flag, $handle, $user, $bucketKey, $useVisitorCookie);
+            return $this->evaluateRuleStrategy($flag, $handle, $user, $bucketKey, $useRequestContext);
         }
 
-        return $this->evaluateAllStrategy($flag, $handle, $user, $bucketKey, $useVisitorCookie);
+        return $this->evaluateAllStrategy($flag, $handle, $user, $bucketKey, $useRequestContext);
     }
 
     /**
      * 'all' strategy: a matching targeting rule enables the flag outright; otherwise the
      * percentage rollout (if any) decides for the remaining audience.
      */
-    private function evaluateAllStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey, bool $useVisitorCookie): array
+    private function evaluateAllStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey, bool $useRequestContext): array
     {
         foreach ($flag->rules as $rule) {
             if ($this->matchRule($rule, $flag, $user)) {
@@ -313,14 +321,14 @@ class EvaluationService extends Component
             return self::result(false, 'no_rule_matched');
         }
 
-        return $this->rolloutResult('all', false, $flag->rolloutPercentage, $handle, $user, $bucketKey, $useVisitorCookie);
+        return $this->rolloutResult('all', false, $flag->rolloutPercentage, $handle, $user, $bucketKey, $useRequestContext);
     }
 
     /**
      * 'rule' strategy: targeting rules define the audience (no rules = everyone), then the
      * percentage rollout filters within that audience.
      */
-    private function evaluateRuleStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey, bool $useVisitorCookie): array
+    private function evaluateRuleStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey, bool $useRequestContext): array
     {
         $ruleMatched = empty($flag->rules);
         $matchedRule = null;
@@ -341,7 +349,7 @@ class EvaluationService extends Component
             return self::result(true, 'rule_matched', matchedRule: $matchedRule);
         }
 
-        return $this->rolloutResult('rule', true, $flag->rolloutPercentage, $handle, $user, $bucketKey, $useVisitorCookie, $matchedRule);
+        return $this->rolloutResult('rule', true, $flag->rolloutPercentage, $handle, $user, $bucketKey, $useRequestContext, $matchedRule);
     }
 
     /**
@@ -355,13 +363,13 @@ class EvaluationService extends Component
         string $handle,
         ?User $user,
         ?string $bucketKey,
-        bool $useVisitorCookie,
+        bool $useRequestContext,
         ?Rule $matchedRule = null,
     ): array {
         $bucket = null;
 
         if ($rolloutPercentage > 0) {
-            $bucketInput = $this->resolveBucketInput($user, $bucketKey, $useVisitorCookie);
+            $bucketInput = $this->resolveBucketInput($user, $bucketKey, $useRequestContext);
             if ($bucketInput !== null) {
                 $bucket = self::computeBucket($bucketInput, $handle);
             }
@@ -424,7 +432,7 @@ class EvaluationService extends Component
      * The value a visitor is bucketed by: an explicit bucket key, else the user ID, else
      * (in web requests, when allowed) the anonymous visitor cookie. Null when there is none.
      */
-    private function resolveBucketInput(?User $user, ?string $bucketKey, bool $useVisitorCookie): ?string
+    private function resolveBucketInput(?User $user, ?string $bucketKey, bool $useRequestContext): ?string
     {
         // An empty bucket key (e.g. `account.id ?? ''` in Twig) means "no key", so a logged-in
         // user still falls back to their user ID rather than the anonymous visitor cookie.
@@ -433,7 +441,7 @@ class EvaluationService extends Component
         }
 
         $bucketInput = $bucketKey ?? ($user ? (string)$user->id : null);
-        if ($bucketInput === null && $useVisitorCookie) {
+        if ($bucketInput === null && $useRequestContext) {
             $bucketInput = $this->getAnonymousVisitorId();
         }
 

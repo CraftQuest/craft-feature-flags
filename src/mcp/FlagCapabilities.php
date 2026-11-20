@@ -118,7 +118,7 @@ class FlagCapabilities
         string $handle,
         #[Schema(description: 'User to evaluate as: a user ID, username, or email address. Omit for an anonymous visitor.')]
         ?string $user = null,
-        #[Schema(description: 'Site ID to evaluate on. Matters only for flags scoped to specific sites on multi-site installs.')]
+        #[Schema(description: 'Site ID to evaluate on. Required to get a real answer for flags scoped to specific sites on multi-site installs: without it, those flags evaluate as off. The current request\'s site is never assumed.')]
         ?int $siteId = null,
         #[Schema(description: 'Explicit rollout bucket key, such as a visitor or account ID. Takes precedence over the user ID for percentage rollouts.')]
         ?string $bucketKey = null,
@@ -146,7 +146,7 @@ class FlagCapabilities
             'handle' => $handle,
             'enabled' => $result['enabled'],
             'reason' => $result['reason'],
-            'explanation' => $this->explanation($result, $flag),
+            'explanation' => $this->explanation($result, $flag, $siteId),
             'bucket' => $result['bucket'],
             'matchedRule' => $result['matchedRule'],
             'context' => [
@@ -597,7 +597,7 @@ class FlagCapabilities
         ];
     }
 
-    private function explanation(array $result, ?Flag $flag): string
+    private function explanation(array $result, ?Flag $flag, ?int $siteId = null): string
     {
         $pct = $flag?->rolloutPercentage;
         $rule = $result['matchedRule'];
@@ -605,7 +605,9 @@ class FlagCapabilities
         return match ($result['reason']) {
             'not_found' => 'No flag has this handle, so checks return false.',
             'disabled' => 'The master switch is off.',
-            'site_gated' => 'The flag is scoped to specific sites and is not enabled on this site (or no site was given).',
+            'site_gated' => $siteId === null
+                ? 'The flag is scoped to specific sites and no siteId was given. Pass siteId to evaluate it for a site.'
+                : 'The flag is scoped to specific sites and is not enabled on this site.',
             'not_started' => 'The flag\'s start date is in the future: ' . $flag?->startsAt?->format(DATE_ATOM) . '.',
             'expired' => 'The flag expired on ' . $flag?->expiresAt?->format(DATE_ATOM) . '.',
             'global_on' => 'The flag is on with no rules and no rollout, so it is on for everyone.',
