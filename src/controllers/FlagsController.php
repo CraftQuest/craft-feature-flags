@@ -37,20 +37,35 @@ class FlagsController extends Controller
         ]);
     }
 
-    public function actionEdit(?int $flagId = null): Response
+    /**
+     * @param int|null $flagId The flag being edited, or null for a new flag
+     * @param Flag|null $flag A flag that failed validation, passed back by actionSave() via
+     *                        asModelFailure() so the form keeps the submitted values and errors
+     */
+    public function actionEdit(?int $flagId = null, ?Flag $flag = null): Response
     {
         $this->requirePermission('featureFlags:manage');
 
-        if ($flagId) {
-            $flag = FeatureFlags::getInstance()->flagService->getFlagById($flagId);
-            if (!$flag) {
-                throw new NotFoundHttpException(Craft::t('feature-flags', 'Flag not found'));
+        if ($flag === null) {
+            if ($flagId) {
+                $flag = FeatureFlags::getInstance()->flagService->getFlagById($flagId);
+                if (!$flag) {
+                    throw new NotFoundHttpException(Craft::t('feature-flags', 'Flag not found'));
+                }
+            } else {
+                $flag = new Flag();
             }
-            $title = Craft::t('feature-flags', 'Edit Flag: {name}', ['name' => $flag->name]);
-        } else {
-            $flag = new Flag();
-            $title = Craft::t('feature-flags', 'Create Flag');
         }
+
+        $title = $flag->id
+            ? Craft::t('feature-flags', 'Edit Flag: {name}', ['name' => $flag->name])
+            : Craft::t('feature-flags', 'Create Flag');
+
+        // The saved handle, for the rename warning. After a failed save, $flag->handle holds
+        // the submitted (possibly renamed) value, so read the stored one.
+        $savedHandle = $flag->id
+            ? (FeatureFlags::getInstance()->flagService->getFlagById($flag->id)?->handle ?? $flag->handle)
+            : null;
 
         $flagTypes = array_map(
             fn(FlagType $type) => [
@@ -62,6 +77,7 @@ class FlagsController extends Controller
 
         return $this->renderTemplate('feature-flags/flags/_edit', [
             'flag' => $flag,
+            'savedHandle' => $savedHandle,
             'title' => $title,
             'flagTypes' => $flagTypes,
             'ruleTypes' => FeatureFlags::getInstance()->flagService->getRuleTypes(),
