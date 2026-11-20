@@ -194,7 +194,13 @@ class EvaluationService extends Component
         $visitorId = $request->cookie($cookieName);
 
         if (!is_string($visitorId) || $visitorId === '') {
-            $visitorId = StringHelper::UUID();
+            // A visitor from before the Craft 6 upgrade has a cookie in Craft 5's (Yii-signed)
+            // format, which Laravel can't decrypt and discards. Keep their visitor ID so they
+            // stay in the same rollout buckets; re-issuing it below converts the cookie.
+            $legacyKey = (string)(\CraftCms\Cms\Cms::config()->securityKey ?: getenv('CRAFT_SECURITY_KEY'));
+            $visitorId = self::legacyVisitorId($_COOKIE[$cookieName] ?? null, $cookieName, $legacyKey ?: null)
+                ?? StringHelper::UUID();
+
             \Illuminate\Support\Facades\Cookie::queue(
                 $cookieName,
                 $visitorId,
@@ -211,6 +217,38 @@ class EvaluationService extends Component
         $this->anonymousVisitorId = $visitorId;
 
         return $visitorId;
+    }
+
+    /**
+     * Extracts the visitor ID from a Craft 5 (Yii-signed) visitor cookie value.
+     *
+     * Craft 5 stored `<64-char hex HMAC-SHA256><serialize([$name, $uuid])>`, keyed by the Craft 5
+     * security key. The value is parsed with a strict pattern, never `unserialize()`d. When the
+     * old key is still configured, the signature must match; Craft's upgrade normally removes
+     * that key, so without one the visitor ID is accepted unverified. That only lets a visitor
+     * choose their rollout bucket, which clearing cookies already allows.
+     *
+     * Pure logic with no Craft dependencies so it can be unit tested directly.
+     *
+     * @return string|null The visitor UUID, or null if the value isn't a valid legacy cookie.
+     */
+    public static function legacyVisitorId(?string $raw, string $cookieName, ?string $legacyKey): ?string
+    {
+        if ($raw === null || !preg_match('/^([0-9a-f]{64})(a:2:\{i:0;s:(\d+):"(.*)";i:1;s:36:"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";\})$/D', $raw, $m)) {
+            return null;
+        }
+
+        [, $hash, $data, $nameLength, $name, $uuid] = $m;
+
+        if ($name !== $cookieName || (int)$nameLength !== strlen($name)) {
+            return null;
+        }
+
+        if ($legacyKey !== null && $legacyKey !== '' && !hash_equals(hash_hmac('sha256', $data, $legacyKey), $hash)) {
+            return null;
+        }
+
+        return $uuid;
     }
 
     /**
