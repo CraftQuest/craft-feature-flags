@@ -55,7 +55,7 @@ class FlagCapabilities
         'items' => ['type' => 'string'],
     ];
 
-    private const DATE_DESCRIPTION = 'ISO 8601 date-time, such as 2026-12-01T09:00:00-05:00. Null clears it.';
+    private const DATE_DESCRIPTION = 'ISO 8601 date-time, such as 2026-12-01T09:00:00-05:00. Without an offset, the site\'s time zone is used. Null clears it.';
 
     /**
      * @return array{count: int, flags: list<array<string, mixed>>}
@@ -340,6 +340,15 @@ class FlagCapabilities
 
         $flag = $this->requireFlag($handle);
 
+        // name, newHandle, rolloutStrategy, and rules can't be null (send [] to remove all rules).
+        // Reject an explicit null rather than guessing: some MCP clients send every optional
+        // argument, often as null.
+        foreach (['name' => $name, 'newHandle' => $newHandle, 'rolloutStrategy' => $rolloutStrategy, 'rules' => $rules] as $argument => $value) {
+            if (array_key_exists($argument, $sent) && $value === null) {
+                throw new ToolCallException("{$argument} can't be null. Omit it to keep the current value.");
+            }
+        }
+
         if (array_key_exists('name', $sent)) {
             $flag->name = $name;
         }
@@ -363,7 +372,7 @@ class FlagCapabilities
             $flag->rolloutPercentage = $rolloutPercentage;
         }
         if (array_key_exists('rolloutStrategy', $sent)) {
-            $flag->rolloutStrategy = $rolloutStrategy ?? 'all';
+            $flag->rolloutStrategy = $rolloutStrategy;
         }
         if (array_key_exists('startsAt', $sent)) {
             $flag->startsAt = $this->parseDate($startsAt, 'startsAt');
@@ -372,7 +381,7 @@ class FlagCapabilities
             $flag->expiresAt = $this->parseDate($expiresAt, 'expiresAt');
         }
         if (array_key_exists('rules', $sent)) {
-            $flag->rules = $this->buildRules($rules ?? []);
+            $flag->rules = $this->buildRules($rules);
         }
         if (array_key_exists('sites', $sent)) {
             $flag->siteSettings = $this->buildSiteSettings($sites);
@@ -453,7 +462,12 @@ class FlagCapabilities
             return null;
         }
 
-        $date = DateTimeHelper::toDateTime($value);
+        // Accept ISO 8601 dates and date-times only (not "tomorrow", timestamps, etc.).
+        $iso = '/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(?:Z|[+-]\d{2}:?\d{2})?$/';
+
+        // Without an explicit offset, use the system time zone, as the control panel's date
+        // fields do (rather than Craft's default of UTC).
+        $date = preg_match($iso, $value) ? DateTimeHelper::toDateTime($value, true) : false;
 
         if (!$date) {
             throw new ToolCallException("{$argument} is not a valid date. Use ISO 8601, such as 2026-12-01T09:00:00-05:00.");
@@ -490,7 +504,7 @@ class FlagCapabilities
         }
 
         $sites = Craft::$app->getSites();
-        $settings = [];
+        $enabledIds = [];
 
         foreach ($handles as $handle) {
             $site = is_string($handle) ? $sites->getSiteByHandle($handle) : null;
@@ -498,7 +512,15 @@ class FlagCapabilities
                 $available = implode(', ', array_map(static fn($s) => $s->handle, $sites->getAllSites()));
                 throw new ToolCallException("Site not found: {$handle}. Available sites: {$available}.");
             }
-            $settings[$site->id] = true;
+            $enabledIds[$site->id] = true;
+        }
+
+        // Store an explicit row for every site, as the control panel does. With only the
+        // enabled rows, deleting the last enabled site would leave no rows at all, which
+        // reads as "all sites" and would turn the flag on everywhere.
+        $settings = [];
+        foreach ($sites->getAllSites() as $site) {
+            $settings[$site->id] = isset($enabledIds[$site->id]);
         }
 
         return $settings;
