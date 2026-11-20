@@ -3,11 +3,12 @@
 namespace craftquest\featureflags\mcp;
 
 use Craft;
-use craft\elements\User;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Json;
 use craft\helpers\UrlHelper;
-use craft\mcp\attributes\RequiresPermission;
+use CraftCms\Cms\Mcp\Attributes\RequiresPermission;
+use CraftCms\Cms\Mcp\McpActor;
+use CraftCms\Cms\User\Contracts\CraftUser;
 use craftquest\featureflags\enums\FlagType;
 use craftquest\featureflags\FeatureFlags;
 use craftquest\featureflags\models\Flag;
@@ -21,10 +22,10 @@ use Mcp\Schema\ToolAnnotations;
 use Mcp\Server\RequestContext;
 
 /**
- * MCP tools for Craft's native MCP server (Craft 5.12+).
+ * MCP tools for Craft's native MCP server.
  *
- * Registered from FeatureFlags::registerMcp() only when craft\services\Mcp exists, so this
- * class (and the SDK attributes it uses) is never loaded on older Craft versions.
+ * Registered from FeatureFlags::registerMcp() with Craft 6's capability registry. Craft
+ * resolves this class from the Laravel container, so McpActor is injected per request.
  *
  * All writes go through FlagService, so validation, audit logging, cache invalidation,
  * and plugin events behave exactly as they do in the control panel.
@@ -34,6 +35,10 @@ use Mcp\Server\RequestContext;
 class FlagCapabilities
 {
     public const TOGGLE_TOOL = 'feature_flags_toggle';
+
+    public function __construct(private McpActor $actor)
+    {
+    }
 
     private const RULE_SCHEMA = [
         'type' => 'array',
@@ -214,8 +219,7 @@ class FlagCapabilities
     #[RequiresPermission('featureFlags:view')]
     public function toggle(string $handle, bool $enabled): array
     {
-        $user = Craft::$app->getUser()->getIdentity();
-        if (!self::canToggle($user)) {
+        if (!self::canToggle($this->actor->user())) {
             throw new ToolCallException('Toggling flags requires the "Toggle feature flags" or "Manage feature flags" permission.');
         }
 
@@ -404,7 +408,7 @@ class FlagCapabilities
     /**
      * Whether a user may flip a flag's master switch. Mirrors FlagsController::actionToggle().
      */
-    public static function canToggle(?User $user): bool
+    public static function canToggle(?CraftUser $user): bool
     {
         return $user !== null && ($user->can('featureFlags:toggle') || $user->can('featureFlags:manage'));
     }

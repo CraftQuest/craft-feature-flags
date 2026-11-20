@@ -62,11 +62,7 @@ class FeatureFlags extends Plugin
         $this->registerVariables();
         $this->registerPermissions();
 
-        // Craft's native MCP server arrived in Craft 5.12. On older versions there is
-        // nothing to register, and FlagCapabilities (which uses the MCP SDK) is never loaded.
-        if (class_exists(\craft\services\Mcp::class)) {
-            $this->registerMcp();
-        }
+        $this->registerMcp();
     }
 
     public function getCpNavItem(): ?array
@@ -144,23 +140,20 @@ class FeatureFlags extends Plugin
         );
     }
 
+    /**
+     * Registers the MCP tools with Craft 6's capability registry and listens for its
+     * (Laravel) MCP events. The acting MCP user comes from the request, not Yii's session.
+     */
     private function registerMcp(): void
     {
-        Event::on(
-            \craft\services\Mcp::class,
-            \craft\services\Mcp::EVENT_REGISTER_CAPABILITY_TYPES,
-            function (\craft\events\RegisterComponentTypesEvent $event) {
-                $event->types[] = FlagCapabilities::class;
-            }
-        );
+        app(\CraftCms\Cms\Mcp\CapabilityRegistry::class)->register(FlagCapabilities::class);
 
         // Toggling is allowed with either the toggle or the manage permission, which
         // #[RequiresPermission] can't express (it requires all listed permissions).
         // Hide the toggle tool from users who have neither; the tool re-checks on call.
-        Event::on(
-            \craft\services\Mcp::class,
-            \craft\services\Mcp::EVENT_DISCOVERING_CAPABILITY,
-            function (\craft\mcp\events\DiscoveringCapability $event) {
+        \Illuminate\Support\Facades\Event::listen(
+            \CraftCms\Cms\Mcp\Events\DiscoveringCapability::class,
+            function (\CraftCms\Cms\Mcp\Events\DiscoveringCapability $event) {
                 $reference = $event->reference;
                 if (
                     $reference instanceof \Mcp\Capability\Registry\ToolReference
@@ -173,24 +166,20 @@ class FeatureFlags extends Plugin
         );
 
         // Short guidance sent to every connecting client that can see flags.
-        Event::on(
-            \craft\mcp\AdminInstructions::class,
-            \craft\mcp\AdminInstructions::EVENT_COLLECT_SERVER_INSTRUCTIONS,
-            function (\craft\mcp\events\CollectingServerInstructions $event) {
-                $user = Craft::$app->getUser()->getIdentity();
-                if ($user && $user->can('featureFlags:view')) {
+        \Illuminate\Support\Facades\Event::listen(
+            \CraftCms\Cms\Mcp\Events\CollectingServerInstructions::class,
+            function (\CraftCms\Cms\Mcp\Events\CollectingServerInstructions $event) {
+                if (request()->craftUser()?->can('featureFlags:view')) {
                     $event->instructions[] = 'Feature Flags: use the feature_flags_* tools to inspect, evaluate, and change runtime feature flags. To disable a feature quickly, turn its flag off with feature_flags_toggle rather than deleting it.';
                 }
             }
         );
 
         // Fuller guidance returned by Craft's info_get tool.
-        Event::on(
-            \craft\mcp\AdminInstructions::class,
-            \craft\mcp\AdminInstructions::EVENT_COLLECT_INSTRUCTIONS,
-            function (\craft\mcp\events\CollectingAdminInstructions $event) {
-                $user = Craft::$app->getUser()->getIdentity();
-                if (!$user || !$user->can('featureFlags:view')) {
+        \Illuminate\Support\Facades\Event::listen(
+            \CraftCms\Cms\Mcp\Events\CollectingAdminInstructions::class,
+            function (\CraftCms\Cms\Mcp\Events\CollectingAdminInstructions $event) {
+                if (!request()->craftUser()?->can('featureFlags:view')) {
                     return;
                 }
 
