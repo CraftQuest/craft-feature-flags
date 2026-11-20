@@ -5,6 +5,7 @@
 - Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5. It runs on Craft 6 through `craftcms/yii2-adapter`, which is now a dependency. Sites on Craft 5 should stay on Feature Flags 1.x
 - MCP tools now register with Craft 6's MCP server
 - The anonymous visitor cookie (`_ff_vid`) is now set and read through Laravel, and encrypted with the app key
+- `EvaluationService::explain()` and the MCP `feature_flags_evaluate` tool no longer fall back to the current request's site. Pass `siteId` to evaluate a flag that's scoped to specific sites. This gives the same answer over MCP's HTTP and stdio servers
 
 ### Fixed
 - Visitors keep their rollout buckets when a site upgrades from Craft 5. The Craft 5 visitor cookie is read once and re-issued in the Craft 6 format, instead of every anonymous visitor being assigned a new bucket
