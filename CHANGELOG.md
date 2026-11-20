@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2 - Unreleased
+### Fixed
+- MCP: `feature_flags_evaluate` gave different answers for flags scoped to specific sites depending on how the client connected. Without a `siteId`, it used the request's site over HTTP but no site over stdio. It now uses only the `siteId` you pass, so the answer is the same either way, and the explanation says to pass `siteId` when it's needed
+
+### Changed
+- `EvaluationService::explain()` no longer falls back to the current request's site, matching how it already ignores the logged-in user and the visitor cookie. Pass `$siteId` to explain a flag that's scoped to specific sites. `isEnabled()` is unchanged and still uses the current site
+
 ## 1.2.1 - 2026-11-20
 ### Fixed
 - When saving a flag in the control panel fails validation (for example, a handle that's already in use), the form now keeps what you entered and shows the field errors, instead of reloading the saved flag or an empty form
