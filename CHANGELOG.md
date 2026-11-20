@@ -1,7 +1,8 @@
 # Changelog
 
-## 1.2.0 - Unreleased
+## 1.2.0 - 2026-11-19
 ### Added
+- Support for Craft's native MCP server (Craft 5.12+). AI assistants connected to Craft can list, inspect, evaluate, toggle, create, update, and delete flags, ramp rollouts, and read the audit log through `feature_flags_*` tools. Tools follow the user's Feature Flags permissions and are recorded in the audit log. Nothing changes on earlier Craft versions
 - Optional **start date** per flag. A flag evaluates as off before its start date, pairing with the existing expiration date to define a full active window. Both are optional and independent ([#2](https://github.com/CraftQuest/craft-feature-flags/issues/2))
 - Quick toggle: flip a flag's master switch directly from the flag list, with the status updating in place ([#3](https://github.com/CraftQuest/craft-feature-flags/issues/3))
 - New `featureFlags:toggle` permission so editors and support staff can flip flags without being able to edit rules, rollout, or sites. The toggle action accepts either `toggle` or `manage` ([#17](https://github.com/CraftQuest/craft-feature-flags/issues/17))
@@ -12,7 +13,6 @@
 - Copyable Twig, PHP, and console usage snippets in the flag edit page sidebar ([#15](https://github.com/CraftQuest/craft-feature-flags/issues/15))
 - The flag edit page now warns when you change an existing flag's handle, since templates still checking the old handle will silently get `false`. The previous handle is also recorded in the audit entry ([#16](https://github.com/CraftQuest/craft-feature-flags/issues/16))
 - When `devMode` is on, checking a flag handle that doesn't exist now logs a warning so typos aren't mistaken for disabled flags ([#14](https://github.com/CraftQuest/craft-feature-flags/issues/14))
-- Support for Craft's native MCP server (Craft 5.12+). AI assistants connected to Craft can list, inspect, evaluate, toggle, create, update, and delete flags, ramp rollouts, and read the audit log through `feature_flags_*` tools. Tools follow the user's Feature Flags permissions and are recorded in the audit log. Nothing changes on earlier Craft versions
 - `EvaluationService::explain()` evaluates a flag for a given user, site, and bucket key and returns the result with the reason (for example `disabled`, `not_started`, `rule_matched`, or `rollout_out_of_bucket`) and the visitor's rollout bucket
 - `Flag::$startsAt` model property; `EvaluationService::isOutsideSchedule()` static helper
 
