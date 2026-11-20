@@ -46,6 +46,20 @@ if (FeatureFlags::getInstance()->evaluationService->isEnabled('new-checkout')) {
 }
 ```
 
+## AI assistants (MCP)
+
+On Craft 5.12 and later, Feature Flags adds tools to Craft's built-in MCP (Model Context Protocol) server, so AI assistants connected to your site can work with flags:
+
+| Tool | What it does | Permission |
+|---|---|---|
+| `feature_flags_list`, `feature_flags_get` | List flags and read a flag's rules, rollout, schedule, and sites | View feature flags |
+| `feature_flags_evaluate` | Check whether a flag is on for a user, site, or bucket key, and why | View feature flags |
+| `feature_flags_audit_log` | Read the audit log | View feature flags |
+| `feature_flags_toggle` | Turn a flag on or off | Toggle or Manage feature flags |
+| `feature_flags_set_rollout`, `feature_flags_create`, `feature_flags_update`, `feature_flags_delete` | Change flags | Manage feature flags |
+
+Tools act as the signed-in Craft user and respect that user's permissions. Changes are validated and recorded in the audit log exactly as they are in the control panel. There's nothing to configure: enable Craft's MCP server under **Settings → MCP**, and the tools appear for users who can view feature flags. They are never offered on Craft's public MCP endpoint.
+
 ## Documentation
 
 Full documentation is available at [craftquest.io/plugins/feature-flags](https://craftquest.io/plugins/feature-flags).
