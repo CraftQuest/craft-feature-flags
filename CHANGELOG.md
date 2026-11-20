@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.2 - Unreleased
+## 1.2.2 - 2026-11-20
 ### Fixed
 - MCP: `feature_flags_evaluate` gave different answers for flags scoped to specific sites depending on how the client connected. Without a `siteId`, it used the request's site over HTTP but no site over stdio. It now uses only the `siteId` you pass, so the answer is the same either way, and the explanation says to pass `siteId` when it's needed
 
