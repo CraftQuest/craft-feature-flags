@@ -61,6 +61,7 @@ class FeatureFlags extends Plugin
         $this->registerCpRoutes();
         $this->registerVariables();
         $this->registerPermissions();
+        $this->registerQueueHooks();
 
         // Craft's native MCP server arrived in Craft 5.12. On older versions there is
         // nothing to register, and FlagCapabilities (which uses the MCP SDK) is never loaded.
@@ -203,6 +204,22 @@ class FeatureFlags extends Plugin
                     - Prefer feature_flags_toggle to switch a feature off; feature_flags_delete is permanent. feature_flags_update with rules replaces the whole rule list, so read the flag with feature_flags_get first.
                     - Every change is recorded in the audit log under the signed-in user (feature_flags_audit_log).
                     MARKDOWN;
+            }
+        );
+    }
+
+    /**
+     * A queue worker is one long-lived process, so the per-request evaluation cache would
+     * otherwise carry results (and a stale schedule window) from one job into the next.
+     * Start every job with a clean slate; flags themselves still come from the shared cache.
+     */
+    private function registerQueueHooks(): void
+    {
+        Event::on(
+            \yii\queue\Queue::class,
+            \yii\queue\Queue::EVENT_BEFORE_EXEC,
+            function () {
+                $this->evaluationService->clearRequestCache();
             }
         );
     }
