@@ -30,12 +30,6 @@ use yii\base\Event;
  */
 class FeatureFlags extends Plugin
 {
-    /**
-     * Fired on the plugin instance when building the rule type list in the CP.
-     * Attach to this event to register custom rule types.
-     */
-    public const EVENT_REGISTER_RULE_TYPES = 'registerRuleTypes';
-
     public string $schemaVersion = '1.2.0';
     public bool $hasCpSection = true;
     public bool $hasCpSettings = true;

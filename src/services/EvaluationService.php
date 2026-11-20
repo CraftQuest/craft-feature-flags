@@ -12,14 +12,13 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use craftquest\featureflags\FeatureFlags;
-use craftquest\featureflags\events\EvaluateRuleEvent;
+use craftquest\featureflags\events\RuleEvaluating;
+use Illuminate\Support\Facades\Event;
 use craftquest\featureflags\models\Flag;
 use craftquest\featureflags\models\Rule;
 
 class EvaluationService extends Component
 {
-    public const EVENT_EVALUATE_RULE = 'evaluateRule';
-
     private array $requestCache = [];
     private array $userGroupsCache = [];
     private array $userPlansCache = [];
@@ -457,13 +456,10 @@ class EvaluationService extends Component
                 return $user !== null && $this->userOnPlan($user, $rule->ruleValue);
 
             default:
-                if ($this->hasEventHandlers(self::EVENT_EVALUATE_RULE)) {
-                    $event = new EvaluateRuleEvent();
-                    $event->flag = $flag;
-                    $event->rule = $rule;
-                    $event->user = $user;
-
-                    $this->trigger(self::EVENT_EVALUATE_RULE, $event);
+                // Custom rule types (see RuleTypesResolving). Skip the dispatch on the hot path
+                // when nothing is listening.
+                if (Event::hasListeners(RuleEvaluating::class)) {
+                    event($event = new RuleEvaluating($flag, $rule, $user));
 
                     return $event->handled && $event->matched;
                 }

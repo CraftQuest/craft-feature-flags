@@ -8,8 +8,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use craftquest\featureflags\FeatureFlags;
-use craftquest\featureflags\events\FlagEvent;
-use craftquest\featureflags\events\RegisterRuleTypesEvent;
+use craftquest\featureflags\events\FlagDeleted;
+use craftquest\featureflags\events\FlagSaved;
+use craftquest\featureflags\events\FlagSaving;
+use craftquest\featureflags\events\FlagToggled;
+use craftquest\featureflags\events\RuleTypesResolving;
+use Illuminate\Support\Facades\Event;
 use craftquest\featureflags\models\Flag;
 use craftquest\featureflags\models\Rule;
 use craftquest\featureflags\records\AuditRecord;
@@ -20,15 +24,6 @@ use craftquest\featureflags\records\RuleRecord;
 
 class FlagService extends Component
 {
-    /** Fired before a flag is saved. Set `$event->isValid = false` to cancel. */
-    public const EVENT_BEFORE_SAVE_FLAG = 'beforeSaveFlag';
-    /** Fired after a flag is saved and its cache entry invalidated. */
-    public const EVENT_AFTER_SAVE_FLAG = 'afterSaveFlag';
-    /** Fired after a flag's enabled state is toggled. Not fired by a full save. */
-    public const EVENT_AFTER_TOGGLE_FLAG = 'afterToggleFlag';
-    /** Fired after a flag is deleted. */
-    public const EVENT_AFTER_DELETE_FLAG = 'afterDeleteFlag';
-
     public const CACHE_VERSION = 5;
 
     private ?array $ruleTypesCache = null;
@@ -58,9 +53,7 @@ class FlagService extends Component
             $ruleTypes[] = ['label' => t('Subscription Plan', [], 'feature-flags'), 'value' => 'subscriptionPlan'];
         }
 
-        $event = new RegisterRuleTypesEvent();
-        $event->ruleTypes = $ruleTypes;
-        FeatureFlags::getInstance()->trigger(FeatureFlags::EVENT_REGISTER_RULE_TYPES, $event);
+        event($event = new RuleTypesResolving($ruleTypes));
 
         $this->ruleTypesCache = $event->ruleTypes;
 
@@ -148,12 +141,9 @@ class FlagService extends Component
         $isNew = !$flag->id;
         $oldHandle = null;
 
-        if ($this->hasEventHandlers(self::EVENT_BEFORE_SAVE_FLAG)) {
-            $event = new FlagEvent(['flag' => $flag, 'isNew' => $isNew]);
-            $this->trigger(self::EVENT_BEFORE_SAVE_FLAG, $event);
-            if (!$event->isValid) {
-                return false;
-            }
+        event($saving = new FlagSaving($flag, $isNew));
+        if (!$saving->isValid) {
+            return false;
         }
 
         try {
@@ -228,9 +218,7 @@ class FlagService extends Component
             $this->invalidateCache($oldHandle);
         }
 
-        if ($this->hasEventHandlers(self::EVENT_AFTER_SAVE_FLAG)) {
-            $this->trigger(self::EVENT_AFTER_SAVE_FLAG, new FlagEvent(['flag' => $flag, 'isNew' => $isNew]));
-        }
+        event(new FlagSaved($flag, $isNew));
 
         return true;
     }
@@ -254,9 +242,7 @@ class FlagService extends Component
         $this->logAudit(null, 'deleted', ['name' => $flag->name, 'handle' => $flag->handle]);
         $this->invalidateCache($flag->handle);
 
-        if ($this->hasEventHandlers(self::EVENT_AFTER_DELETE_FLAG)) {
-            $this->trigger(self::EVENT_AFTER_DELETE_FLAG, new FlagEvent(['flag' => $flag]));
-        }
+        event(new FlagDeleted($flag));
 
         return true;
     }
@@ -283,11 +269,8 @@ class FlagService extends Component
 
         $this->invalidateCache($record->handle);
 
-        if ($this->hasEventHandlers(self::EVENT_AFTER_TOGGLE_FLAG)) {
-            $flag = $this->getFlagById($id);
-            if ($flag) {
-                $this->trigger(self::EVENT_AFTER_TOGGLE_FLAG, new FlagEvent(['flag' => $flag]));
-            }
+        if (Event::hasListeners(FlagToggled::class) && ($flag = $this->getFlagById($id))) {
+            event(new FlagToggled($flag));
         }
 
         return true;

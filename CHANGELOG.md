@@ -2,6 +2,13 @@
 
 ## 2.0.0 - Unreleased
 ### Changed
+- **Breaking:** the plugin's events are now native Laravel event classes. Register listeners with `Event::listen()` (Laravel) instead of Yii's `Event::on()`. Listener code can stay the same: the event properties are unchanged.
+  - `FlagService::EVENT_BEFORE_SAVE_FLAG` → `events\FlagSaving` (set `$isValid = false` to cancel)
+  - `FlagService::EVENT_AFTER_SAVE_FLAG` → `events\FlagSaved`
+  - `FlagService::EVENT_AFTER_TOGGLE_FLAG` → `events\FlagToggled`
+  - `FlagService::EVENT_AFTER_DELETE_FLAG` → `events\FlagDeleted`
+  - `FeatureFlags::EVENT_REGISTER_RULE_TYPES` → `events\RuleTypesResolving`
+  - `EvaluationService::EVENT_EVALUATE_RULE` → `events\RuleEvaluating`
 - Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5. It runs on Craft 6 through `craftcms/yii2-adapter`, which is now a dependency. Sites on Craft 5 should stay on Feature Flags 1.x
 - MCP tools now register with Craft 6's MCP server
 - The anonymous visitor cookie (`_ff_vid`) is now set and read through Laravel, and encrypted with the app key
