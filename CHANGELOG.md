@@ -11,6 +11,10 @@
   - `EvaluationService::EVENT_EVALUATE_RULE` → `events\RuleEvaluating`
 - Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5. It runs on Craft 6 through `craftcms/yii2-adapter`, which is now a dependency. Sites on Craft 5 should stay on Feature Flags 1.x
 - MCP tools now register with Craft 6's MCP server
+- Console commands are now Artisan commands (`php artisan craft:feature-flags:flags:list`, etc.). The 1.x names (`php craft feature-flags/flags/list`) still work as aliases, and boolean options accept both `--enabled` and `--enabled=1`
+- `feature-flags/flags/cleanup-expired` no longer deletes anything in a non-interactive run (cron, CI) unless you pass `--force`. Under Craft 5 it confirmed automatically
+- Config file overrides move from `config/feature-flags.php` to `config/craft/feature-flags.php`
+- Plugin settings now use Craft's standard plugin settings screen (Settings → Plugins → Feature Flags)
 - The anonymous visitor cookie (`_ff_vid`) is now set and read through Laravel, and encrypted with the app key
 - `EvaluationService::explain()` and the MCP `feature_flags_evaluate` tool no longer fall back to the current request's site. Pass `siteId` to evaluate a flag that's scoped to specific sites. This gives the same answer over MCP's HTTP and stdio servers
 
