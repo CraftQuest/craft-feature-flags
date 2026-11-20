@@ -211,6 +211,15 @@ class FeatureFlags extends Plugin
                 $this->evaluationService->clearRequestCache();
             }
         );
+
+        // Craft 6 runs jobs with Laravel's queue worker (`queue:work`), which doesn't fire
+        // the Yii queue event above.
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Queue\Events\JobProcessing::class,
+            function () {
+                $this->evaluationService->clearRequestCache();
+            }
+        );
     }
 
     private function registerPermissions(): void
