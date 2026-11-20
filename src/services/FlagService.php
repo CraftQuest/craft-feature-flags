@@ -9,6 +9,7 @@ use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
 use craft\helpers\Json;
 use craftquest\featureflags\FeatureFlags;
+use craftquest\featureflags\events\FlagEvent;
 use craftquest\featureflags\events\RegisterRuleTypesEvent;
 use craftquest\featureflags\models\Flag;
 use craftquest\featureflags\models\Rule;
@@ -20,7 +21,16 @@ use craftquest\featureflags\records\RuleRecord;
 
 class FlagService extends Component
 {
-    public const CACHE_VERSION = 3;
+    /** Fired before a flag is saved. Set `$event->isValid = false` to cancel. */
+    public const EVENT_BEFORE_SAVE_FLAG = 'beforeSaveFlag';
+    /** Fired after a flag is saved and its cache entry invalidated. */
+    public const EVENT_AFTER_SAVE_FLAG = 'afterSaveFlag';
+    /** Fired after a flag's enabled state is toggled. Not fired by a full save. */
+    public const EVENT_AFTER_TOGGLE_FLAG = 'afterToggleFlag';
+    /** Fired after a flag is deleted. */
+    public const EVENT_AFTER_DELETE_FLAG = 'afterDeleteFlag';
+
+    public const CACHE_VERSION = 4;
 
     private ?array $ruleTypesCache = null;
 
@@ -135,6 +145,14 @@ class FlagService extends Component
         $isNew = !$flag->id;
         $oldHandle = null;
 
+        if ($this->hasEventHandlers(self::EVENT_BEFORE_SAVE_FLAG)) {
+            $event = new FlagEvent(['flag' => $flag, 'isNew' => $isNew]);
+            $this->trigger(self::EVENT_BEFORE_SAVE_FLAG, $event);
+            if (!$event->isValid) {
+                return false;
+            }
+        }
+
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
             if ($isNew) {
@@ -154,6 +172,7 @@ class FlagService extends Component
             $record->rolloutPercentage = $flag->rolloutPercentage;
             $record->rolloutStrategy = $flag->rolloutStrategy;
             $record->flagType = $flag->flagType;
+            $record->startsAt = Db::prepareDateForDb($flag->startsAt);
             $record->expiresAt = Db::prepareDateForDb($flag->expiresAt);
 
             if (!$record->save()) {
@@ -207,7 +226,7 @@ class FlagService extends Component
             throw $e;
         }
 
-        $this->logAudit($flag->id, $isNew ? 'created' : 'updated', [
+        $details = [
             'name' => $flag->name,
             'handle' => $flag->handle,
             'enabled' => $flag->enabled,
@@ -215,11 +234,19 @@ class FlagService extends Component
             'rolloutStrategy' => $flag->rolloutStrategy,
             'rulesCount' => count($flag->rules),
             'sitesCount' => is_array($flag->siteSettings) ? count($flag->siteSettings) : 0,
-        ]);
+        ];
+        if ($oldHandle && $oldHandle !== $flag->handle) {
+            $details['previousHandle'] = $oldHandle;
+        }
+        $this->logAudit($flag->id, $isNew ? 'created' : 'updated', $details);
 
         $this->invalidateCache($flag->handle);
         if ($oldHandle && $oldHandle !== $flag->handle) {
             $this->invalidateCache($oldHandle);
+        }
+
+        if ($this->hasEventHandlers(self::EVENT_AFTER_SAVE_FLAG)) {
+            $this->trigger(self::EVENT_AFTER_SAVE_FLAG, new FlagEvent(['flag' => $flag, 'isNew' => $isNew]));
         }
 
         return true;
@@ -245,6 +272,10 @@ class FlagService extends Component
         // flagId is SET NULL on existing audit rows; log the deletion with null flagId.
         $this->logAudit(null, 'deleted', ['name' => $flag->name, 'handle' => $flag->handle]);
         $this->invalidateCache($flag->handle);
+
+        if ($this->hasEventHandlers(self::EVENT_AFTER_DELETE_FLAG)) {
+            $this->trigger(self::EVENT_AFTER_DELETE_FLAG, new FlagEvent(['flag' => $flag]));
+        }
 
         return true;
     }
@@ -277,6 +308,13 @@ class FlagService extends Component
         ]);
 
         $this->invalidateCache($record->handle);
+
+        if ($this->hasEventHandlers(self::EVENT_AFTER_TOGGLE_FLAG)) {
+            $flag = $this->getFlagById($id);
+            if ($flag) {
+                $this->trigger(self::EVENT_AFTER_TOGGLE_FLAG, new FlagEvent(['flag' => $flag]));
+            }
+        }
 
         return true;
     }
@@ -322,6 +360,7 @@ class FlagService extends Component
         $flag->rolloutPercentage = $record->rolloutPercentage !== null ? (int)$record->rolloutPercentage : null;
         $flag->rolloutStrategy = $record->rolloutStrategy ?? 'all';
         $flag->flagType = $record->flagType;
+        $flag->startsAt = DateTimeHelper::toDateTime($record->startsAt) ?: null;
         $flag->expiresAt = DateTimeHelper::toDateTime($record->expiresAt) ?: null;
         $flag->uid = $record->uid;
         $flag->dateCreated = DateTimeHelper::toDateTime($record->dateCreated) ?: null;

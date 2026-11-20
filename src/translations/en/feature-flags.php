@@ -14,6 +14,10 @@ return [
     // Permissions
     'View feature flags' => 'View feature flags',
     'Manage feature flags' => 'Manage feature flags',
+    'Toggle feature flags on and off' => 'Toggle feature flags on and off',
+    'Flip the master switch from the flag list without editing rules, rollout, or sites.' => 'Flip the master switch from the flag list without editing rules, rollout, or sites.',
+    'You are not permitted to toggle feature flags.' => 'You are not permitted to toggle feature flags.',
+    'Toggle {name}' => 'Toggle {name}',
 
     // Flag types
     'Release' => 'Release',
@@ -35,6 +39,10 @@ return [
     'Type' => 'Type',
     'Rollout Percentage' => 'Rollout Percentage',
     'Expires At' => 'Expires At',
+    'Starts At' => 'Starts At',
+    'Starts' => 'Starts',
+    'Optional. Flag returns false before this date.' => 'Optional. Flag returns false before this date.',
+    'The expiration date must be after the start date.' => 'The expiration date must be after the start date.',
     'Date Created' => 'Date Created',
     'Date Updated' => 'Date Updated',
 
@@ -42,6 +50,7 @@ return [
     'Master switch. When off, the flag is disabled regardless of rules or rollout.' => 'Master switch. When off, the flag is disabled regardless of rules or rollout.',
     'A human-readable name for this flag.' => 'A human-readable name for this flag.',
     'Used in templates and APIs.' => 'Used in templates and APIs.',
+    'Renaming the handle will disable this flag anywhere the old handle “{handle}” is still used.' => 'Renaming the handle will disable this flag anywhere the old handle “{handle}” is still used.',
     'Human-readable description of what this flag controls.' => 'Human-readable description of what this flag controls.',
     '0–100. Users are bucketed consistently by their user ID.' => '0–100. Users are bucketed consistently by their user ID.',
     'Optional. Flag returns false after this date.' => 'Optional. Flag returns false after this date.',
@@ -85,7 +94,15 @@ return [
 
     // Errors
     'Flag not found' => 'Flag not found',
+    'A flag with the handle "{handle}" already exists.' => 'A flag with the handle "{handle}" already exists.',
+    'Unknown flag type "{type}". Use one of: {types}' => 'Unknown flag type "{type}". Use one of: {types}',
+    'Flag "{name}" created.' => 'Flag "{name}" created.',
+    'Percentage must be a whole number from 0 to 100, or "none".' => 'Percentage must be a whole number from 0 to 100, or "none".',
+    'Rollout for "{name}" set to {value}.' => 'Rollout for "{name}" set to {value}.',
+    'none' => 'none',
+    'None' => 'None',
     'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.' => 'Handle must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.',
+    'Select at least one site, or choose “All sites”.' => 'Select at least one site, or choose “All sites”.',
     'Unknown rule type: {type}.' => 'Unknown rule type: {type}.',
 
     // Console commands

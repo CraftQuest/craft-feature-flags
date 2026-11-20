@@ -90,6 +90,22 @@
         });
     })();
     {% endjs %}
+    {% else %}
+    <p id="ff-handle-warning" class="warning has-icon hidden">
+        <span class="icon" aria-hidden="true"></span>
+        <span class="visually-hidden">{{ 'Warning:'|t('app') }} </span>
+        <span>{{ 'Renaming the handle will disable this flag anywhere the old handle “{handle}” is still used.'|t('feature-flags', { handle: flag.handle }) }}</span>
+    </p>
+    {% js %}
+    (function() {
+        const handle = document.getElementById('handle');
+        const warning = document.getElementById('ff-handle-warning');
+        const original = {{ flag.handle|json_encode|raw }};
+        function sync() { warning.classList.toggle('hidden', handle.value === original); }
+        handle.addEventListener('input', sync);
+        sync();
+    })();
+    {% endjs %}
     {% endif %}
 
     {{ forms.textareaField({
@@ -108,6 +124,15 @@
         value: flag.flagType,
         options: flagTypes,
         errors: flag.getErrors('flagType'),
+    }) }}
+
+    {{ forms.dateTimeField({
+        label: 'Starts At'|t('feature-flags'),
+        instructions: 'Optional. Flag returns false before this date.'|t('feature-flags'),
+        id: 'startsAt',
+        name: 'startsAt',
+        value: flag.startsAt,
+        errors: flag.getErrors('startsAt'),
     }) }}
 
     {{ forms.dateTimeField({
@@ -136,6 +161,7 @@
                 { label: 'All sites'|t('feature-flags'), value: 'all' },
                 { label: 'Only specific sites'|t('feature-flags'), value: 'specific' },
             ],
+            errors: flag.getErrors('siteSettings'),
         }) }}
 
         <div id="ff-specific-sites"{{ scoped ? '' : ' class="hidden"' }}>
@@ -268,6 +294,30 @@
                 <h5 class="heading">{{ 'Audit Log'|t('feature-flags') }}</h5>
                 <div class="value"><a href="{{ url('feature-flags/audit/' ~ flag.id) }}">{{ 'View history'|t('feature-flags') }}</a></div>
             </div>
+        </div>
+
+        <h2 style="margin-inline-start: calc(var(--m) - var(--padding));">{{ 'Usage'|t('feature-flags') }}</h2>
+        <div class="meta">
+            {{ forms.copytextField({
+                label: 'Twig'|t('feature-flags'),
+                id: 'ff-snippet-twig',
+                class: 'code',
+                value: "{% if craft.featureFlags.isEnabled('" ~ flag.handle ~ "') %}",
+            }) }}
+
+            {{ forms.copytextField({
+                label: 'PHP'|t('feature-flags'),
+                id: 'ff-snippet-php',
+                class: 'code',
+                value: "FeatureFlags::getInstance()->evaluationService->isEnabled('" ~ flag.handle ~ "')",
+            }) }}
+
+            {{ forms.copytextField({
+                label: 'Console'|t('feature-flags'),
+                id: 'ff-snippet-console',
+                class: 'code',
+                value: 'php craft feature-flags/flags/enable ' ~ flag.handle,
+            }) }}
         </div>
     {% endif %}
 {% endblock %}

@@ -9,6 +9,7 @@ use craftquest\featureflags\enums\FlagType;
 use craftquest\featureflags\FeatureFlags;
 use craftquest\featureflags\models\Flag;
 use craftquest\featureflags\models\Rule;
+use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
@@ -94,6 +95,7 @@ class FlagsController extends Controller
         $flag->rolloutPercentage = ($rollout !== null && $rollout !== '') ? (int)$rollout : null;
         $flag->rolloutStrategy = $request->getBodyParam('rolloutStrategy', 'all');
         $flag->flagType = $request->getBodyParam('flagType', 'release');
+        $flag->startsAt = DateTimeHelper::toDateTime($request->getBodyParam('startsAt')) ?: null;
         $flag->expiresAt = DateTimeHelper::toDateTime($request->getBodyParam('expiresAt')) ?: null;
 
         // Per-site scope is only posted on multi-site installs.
@@ -139,7 +141,7 @@ class FlagsController extends Controller
 
     public function actionToggle(): Response
     {
-        $this->requirePermission('featureFlags:manage');
+        $this->requireTogglePermission();
         $this->requirePostRequest();
         $this->requireAcceptsJson();
 
@@ -165,6 +167,18 @@ class FlagsController extends Controller
         }
 
         return $this->asSuccess(Craft::t('feature-flags', 'Flag deleted.'));
+    }
+
+    /**
+     * Toggling is allowed with either the dedicated toggle permission or full manage.
+     * They are sibling permissions under "view", so manage does not imply toggle.
+     */
+    private function requireTogglePermission(): void
+    {
+        $userSession = Craft::$app->getUser();
+        if (!$userSession->checkPermission('featureFlags:toggle') && !$userSession->checkPermission('featureFlags:manage')) {
+            throw new ForbiddenHttpException(Craft::t('feature-flags', 'You are not permitted to toggle feature flags.'));
+        }
     }
 
     public function actionSettings(): Response

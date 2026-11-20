@@ -62,6 +62,27 @@ class EvaluationService extends Component
     }
 
     /**
+     * Whether `$now` falls outside a flag's optional schedule window.
+     *
+     * Pure logic with no Craft dependencies so it can be unit tested directly.
+     * Both bounds are optional and independent: a flag is off before `$startsAt`
+     * (if set) and off once `$expiresAt` (if set) has passed. A flag with neither
+     * is never outside the window.
+     */
+    public static function isOutsideSchedule(?\DateTimeInterface $startsAt, ?\DateTimeInterface $expiresAt, \DateTimeInterface $now): bool
+    {
+        if ($startsAt !== null && $now < $startsAt) {
+            return true;
+        }
+
+        if ($expiresAt !== null && $expiresAt < $now) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Decides whether the per-site gate blocks a flag for a resolved site context.
      *
      * Pure logic with no Craft dependencies so it can be unit tested directly.
@@ -194,16 +215,43 @@ class EvaluationService extends Component
         return null;
     }
 
+    /**
+     * Evaluates a flag and explains the result, without touching the request cache.
+     *
+     * Unlike isEnabled(), this never falls back to the logged-in user and never sets the
+     * anonymous visitor cookie: pass `$user` and/or `$bucketKey` explicitly. With neither,
+     * a percentage rollout has no bucket input and evaluates to off.
+     *
+     * @return array{enabled: bool, reason: string, bucket: int|null, matchedRule: array{type: string|null, value: string|null}|null}
+     *   `reason` is one of: not_found, disabled, site_gated, not_started, expired, global_on,
+     *   rule_matched, no_rule_matched, rollout_zero, rollout_in_bucket, rollout_out_of_bucket,
+     *   rollout_no_bucket_input.
+     */
+    public function explain(string $handle, ?User $user = null, ?string $bucketKey = null, ?int $siteId = null): array
+    {
+        return $this->evaluateWithReason($handle, $user, $bucketKey, $siteId, false);
+    }
+
     private function evaluate(string $handle, ?User $user, ?string $bucketKey = null, ?int $siteId = null): bool
+    {
+        return $this->evaluateWithReason($handle, $user, $bucketKey, $siteId, true)['enabled'];
+    }
+
+    private function evaluateWithReason(string $handle, ?User $user, ?string $bucketKey, ?int $siteId, bool $useVisitorCookie): array
     {
         $flag = $this->getFlagFromCache($handle);
 
         if ($flag === null) {
-            return false;
+            // An unknown handle is indistinguishable from a disabled flag, so surface
+            // likely typos in dev. No behavior change: the flag still evaluates to off.
+            if (Craft::$app->getConfig()->getGeneral()->devMode) {
+                Craft::warning("Feature flag \"{$handle}\" was checked but does not exist.", __METHOD__);
+            }
+            return self::result(false, 'not_found');
         }
 
         if (!$flag->enabled) {
-            return false;
+            return self::result(false, 'disabled');
         }
 
         // Per-site scope gate. A flag with no per-site settings applies to all sites.
@@ -214,68 +262,119 @@ class EvaluationService extends Component
         $isMultiSite = Craft::$app->getIsMultiSite();
         $site = $isMultiSite ? $this->resolveCurrentSite($siteId) : null;
         if (self::isGatedOff($isMultiSite, $site?->id, $flag->siteSettings ?? [])) {
-            return false;
+            return self::result(false, 'site_gated');
         }
 
-        if ($flag->expiresAt !== null && DateTimeHelper::isInThePast($flag->expiresAt)) {
-            return false;
+        // Schedule window: off before the start date, off after the expiration date.
+        $now = DateTimeHelper::now();
+        if (self::isOutsideSchedule($flag->startsAt, $flag->expiresAt, $now)) {
+            $notStarted = $flag->startsAt !== null && $now < $flag->startsAt;
+            return self::result(false, $notStarted ? 'not_started' : 'expired');
         }
 
         // No rules and no rollout = global on.
         if (empty($flag->rules) && $flag->rolloutPercentage === null) {
-            return true;
+            return self::result(true, 'global_on');
         }
 
         if ($flag->rolloutStrategy === 'rule') {
-            return $this->evaluateRuleStrategy($flag, $handle, $user, $bucketKey);
+            return $this->evaluateRuleStrategy($flag, $handle, $user, $bucketKey, $useVisitorCookie);
         }
 
-        return $this->evaluateAllStrategy($flag, $handle, $user, $bucketKey);
+        return $this->evaluateAllStrategy($flag, $handle, $user, $bucketKey, $useVisitorCookie);
     }
 
     /**
      * 'all' strategy: a matching targeting rule enables the flag outright; otherwise the
      * percentage rollout (if any) decides for the remaining audience.
      */
-    private function evaluateAllStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey): bool
+    private function evaluateAllStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey, bool $useVisitorCookie): array
     {
         foreach ($flag->rules as $rule) {
             if ($this->matchRule($rule, $flag, $user)) {
-                return true;
+                return self::result(true, 'rule_matched', matchedRule: $rule);
             }
         }
 
-        $inBucket = $flag->rolloutPercentage !== null
-            && $flag->rolloutPercentage > 0
-            && $this->checkRollout($flag->rolloutPercentage, $handle, $user, $bucketKey);
+        if ($flag->rolloutPercentage === null) {
+            return self::result(false, 'no_rule_matched');
+        }
 
-        return self::rolloutDecision('all', false, $flag->rolloutPercentage, $inBucket);
+        return $this->rolloutResult('all', false, $flag->rolloutPercentage, $handle, $user, $bucketKey, $useVisitorCookie);
     }
 
     /**
      * 'rule' strategy: targeting rules define the audience (no rules = everyone), then the
      * percentage rollout filters within that audience.
      */
-    private function evaluateRuleStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey): bool
+    private function evaluateRuleStrategy(Flag $flag, string $handle, ?User $user, ?string $bucketKey, bool $useVisitorCookie): array
     {
         $ruleMatched = empty($flag->rules);
+        $matchedRule = null;
 
         foreach ($flag->rules as $rule) {
             if ($this->matchRule($rule, $flag, $user)) {
                 $ruleMatched = true;
+                $matchedRule = $rule;
                 break;
             }
         }
 
         if (!$ruleMatched) {
-            return false;
+            return self::result(false, 'no_rule_matched');
         }
 
-        $inBucket = $flag->rolloutPercentage !== null
-            && $flag->rolloutPercentage > 0
-            && $this->checkRollout($flag->rolloutPercentage, $handle, $user, $bucketKey);
+        if ($flag->rolloutPercentage === null) {
+            return self::result(true, 'rule_matched', matchedRule: $matchedRule);
+        }
 
-        return self::rolloutDecision('rule', true, $flag->rolloutPercentage, $inBucket);
+        return $this->rolloutResult('rule', true, $flag->rolloutPercentage, $handle, $user, $bucketKey, $useVisitorCookie, $matchedRule);
+    }
+
+    /**
+     * Applies the percentage rollout and builds the explained result. The final decision
+     * always goes through rolloutDecision() so isEnabled() and explain() can't diverge.
+     */
+    private function rolloutResult(
+        string $strategy,
+        bool $ruleMatched,
+        int $rolloutPercentage,
+        string $handle,
+        ?User $user,
+        ?string $bucketKey,
+        bool $useVisitorCookie,
+        ?Rule $matchedRule = null,
+    ): array {
+        $bucket = null;
+
+        if ($rolloutPercentage > 0) {
+            $bucketInput = $this->resolveBucketInput($user, $bucketKey, $useVisitorCookie);
+            if ($bucketInput !== null) {
+                $bucket = self::computeBucket($bucketInput, $handle);
+            }
+        }
+
+        $inBucket = $bucket !== null && $bucket < $rolloutPercentage;
+        $enabled = self::rolloutDecision($strategy, $ruleMatched, $rolloutPercentage, $inBucket);
+
+        $reason = match (true) {
+            $rolloutPercentage === 0 => 'rollout_zero',
+            $bucket === null => 'rollout_no_bucket_input',
+            $inBucket => 'rollout_in_bucket',
+            default => 'rollout_out_of_bucket',
+        };
+
+        return self::result($enabled, $reason, $bucket, $matchedRule);
+    }
+
+    private static function result(bool $enabled, string $reason, ?int $bucket = null, ?Rule $matchedRule = null): array
+    {
+        return [
+            'enabled' => $enabled,
+            'reason' => $reason,
+            'bucket' => $bucket,
+            'matchedRule' => $matchedRule ? ['type' => $matchedRule->ruleType, 'value' => $matchedRule->ruleValue] : null,
+        ];
     }
 
     private function matchRule(Rule $rule, Flag $flag, ?User $user): bool
@@ -308,17 +407,18 @@ class EvaluationService extends Component
         }
     }
 
-    private function checkRollout(int $rolloutPercentage, string $handle, ?User $user, ?string $bucketKey): bool
+    /**
+     * The value a visitor is bucketed by: an explicit bucket key, else the user ID, else
+     * (in web requests, when allowed) the anonymous visitor cookie. Null when there is none.
+     */
+    private function resolveBucketInput(?User $user, ?string $bucketKey, bool $useVisitorCookie): ?string
     {
         $bucketInput = $bucketKey ?? ($user ? (string)$user->id : null);
-        if ($bucketInput === null || $bucketInput === '') {
+        if (($bucketInput === null || $bucketInput === '') && $useVisitorCookie) {
             $bucketInput = $this->getAnonymousVisitorId();
         }
-        if ($bucketInput !== null && $bucketInput !== '') {
-            return self::computeBucket($bucketInput, $handle) < $rolloutPercentage;
-        }
 
-        return false;
+        return ($bucketInput !== null && $bucketInput !== '') ? $bucketInput : null;
     }
 
     private function getFlagFromCache(string $handle): ?Flag
