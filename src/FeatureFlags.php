@@ -10,6 +10,12 @@ use CraftCms\Cms\Mcp\Events\DiscoveringCapability;
 use CraftCms\Cms\Plugin\Plugin;
 use CraftCms\Cms\Plugin\PluginSettings;
 use CraftCms\Cms\Twig\Variables\CraftVariable;
+use CraftCms\Cms\Ui\Controls\Lightswitch;
+use CraftCms\Cms\Ui\Controls\Number;
+use CraftCms\Cms\Ui\Controls\Text;
+use CraftCms\Cms\Ui\Nodes\Field;
+use CraftCms\Cms\Ui\Ui;
+use CraftCms\Cms\Ui\UiContext;
 use CraftCms\Cms\User\Data\Permission;
 use craftquest\featureflags\console;
 use craftquest\featureflags\mcp\FlagCapabilities;
@@ -126,6 +132,26 @@ final class FeatureFlags extends Plugin
             ->label($this->getSettings()->pluginName ?: t('Feature Flags', [], 'feature-flags'))
             ->href('feature-flags')
             ->subnav($subnav);
+    }
+
+    /**
+     * Fields for Craft's standard plugin settings screen. Craft handles saving to project
+     * config, validation against Settings::getRules(), and read-only mode.
+     */
+    public function settingsUi(UiContext $context = new UiContext()): ?Ui
+    {
+        return Ui::make([
+            Field::make(t('Plugin Name', [], 'feature-flags'), Text::make('pluginName')->placeholder(t('Feature Flags', [], 'feature-flags')))
+                ->instructions(t('Override the plugin name shown in the control panel navigation.', [], 'feature-flags')),
+            Field::make(t('Enable Audit Log', [], 'feature-flags'), Lightswitch::make('enableAuditLog'))
+                ->instructions(t('Record every flag change, and who made it.', [], 'feature-flags')),
+            Field::make(t('Cache Duration', [], 'feature-flags'), Number::make('cacheTtl')->min(0)->size(8)->suffix(t('seconds', [], 'feature-flags')))
+                ->instructions(t('How long each flag is cached. 0 disables caching.', [], 'feature-flags')),
+            Field::make(t('Anonymous Visitor Cookie Name', [], 'feature-flags'), Text::make('anonymousCookieName'))
+                ->instructions(t('Cookie that keeps anonymous visitors in the same rollout bucket.', [], 'feature-flags')),
+            Field::make(t('Anonymous Visitor Cookie Duration', [], 'feature-flags'), Number::make('anonymousCookieTtl')->min(0)->size(10)->suffix(t('seconds', [], 'feature-flags')))
+                ->instructions(t('0 disables the cookie; anonymous visitors then have no rollout bucket.', [], 'feature-flags')),
+        ]);
     }
 
     protected function cpNavIconPath(): ?string
