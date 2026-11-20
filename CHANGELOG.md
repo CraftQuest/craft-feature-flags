@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0 - Unreleased
+### Changed
+- Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5. It runs on Craft 6 through `craftcms/yii2-adapter`, which is now a dependency. Sites on Craft 5 should stay on Feature Flags 1.x
+- MCP tools now register with Craft 6's MCP server
+- The anonymous visitor cookie (`_ff_vid`) is now set and read through Laravel, and encrypted with the app key
+
+### Fixed
+- Visitors keep their rollout buckets when a site upgrades from Craft 5. The Craft 5 visitor cookie is read once and re-issued in the Craft 6 format, instead of every anonymous visitor being assigned a new bucket
+- Anonymous visitors stay in the same rollout bucket across page loads on Craft 6 (the visitor cookie was not being sent)
+- Queue jobs run by Laravel's queue worker start with fresh flag results, as they do on Craft 5
+
 ## 1.2.1 - 2026-11-20
 ### Fixed
 - When saving a flag in the control panel fails validation (for example, a handle that's already in use), the form now keeps what you entered and shows the field errors, instead of reloading the saved flag or an empty form
