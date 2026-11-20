@@ -47,12 +47,25 @@ class EvaluationService extends Component
         return $result;
     }
 
+    /**
+     * Clears everything this service caches for the current request or job: evaluation
+     * results, user group/plan lookups, and the anonymous visitor ID.
+     */
     public function clearRequestCache(): void
     {
-        $this->requestCache = [];
+        $this->clearEvaluationCache();
         $this->userGroupsCache = [];
         $this->userPlansCache = [];
         $this->anonymousVisitorId = null;
+    }
+
+    /**
+     * Clears only the cached evaluation results, so the next check re-evaluates against
+     * current flag data. Called whenever a flag changes in this process.
+     */
+    public function clearEvaluationCache(): void
+    {
+        $this->requestCache = [];
     }
 
     /** Rollout bucket (0-99) for a given input/flag pair. */
@@ -417,8 +430,14 @@ class EvaluationService extends Component
      */
     private function resolveBucketInput(?User $user, ?string $bucketKey, bool $useVisitorCookie): ?string
     {
+        // An empty bucket key (e.g. `account.id ?? ''` in Twig) means "no key", so a logged-in
+        // user still falls back to their user ID rather than the anonymous visitor cookie.
+        if ($bucketKey === '') {
+            $bucketKey = null;
+        }
+
         $bucketInput = $bucketKey ?? ($user ? (string)$user->id : null);
-        if (($bucketInput === null || $bucketInput === '') && $useVisitorCookie) {
+        if ($bucketInput === null && $useVisitorCookie) {
             $bucketInput = $this->getAnonymousVisitorId();
         }
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.1 - 2026-11-20
+### Fixed
+- When saving a flag in the control panel fails validation (for example, a handle that's already in use), the form now keeps what you entered and shows the field errors, instead of reloading the saved flag or an empty form
+- An existing flag whose handle is cleared now fails validation instead of silently getting a new handle generated from its name, which would turn it off everywhere the old handle is checked
+- MCP: `feature_flags_update` now rejects `null` for `newHandle`, `name`, `rolloutStrategy`, and `rules` instead of treating it as a change. Previously, `newHandle: null` renamed the flag
+- MCP: dates without a time zone offset are now interpreted in the site's time zone, as in the control panel, instead of UTC. Only ISO 8601 dates are accepted
+- MCP: flags scoped to specific sites now store an explicit setting for every site, so deleting the only enabled site no longer turns the flag on for all sites
+- An empty bucket key (for example `isEnabled('handle', account.id ?? '')`) is now treated like no bucket key, so logged-in users are bucketed by their user ID instead of the anonymous visitor cookie
+- Queue workers and other long-running processes no longer keep returning a flag's old result after it changes. Evaluation results are cleared when a flag is saved, toggled, or deleted, and at the start of every queue job
+
 ## 1.2.0 - 2026-11-19
 ### Added
 - Support for Craft's native MCP server (Craft 5.12+). AI assistants connected to Craft can list, inspect, evaluate, toggle, create, update, and delete flags, ramp rollouts, and read the audit log through `feature_flags_*` tools. Tools follow the user's Feature Flags permissions and are recorded in the audit log. Nothing changes on earlier Craft versions

@@ -133,8 +133,10 @@ class FlagService extends Component
 
     public function saveFlag(Flag $flag): bool
     {
-        // Auto-generate handle from name if blank
-        if (empty($flag->handle) && !empty($flag->name)) {
+        // Auto-generate a handle from the name for new flags only. An existing flag with a
+        // blank handle fails validation instead: silently generating a new handle would
+        // rename the flag and turn it off everywhere the old handle is checked.
+        if (!$flag->id && empty($flag->handle) && !empty($flag->name)) {
             $flag->handle = $this->generateHandle($flag->name);
         }
 
@@ -406,5 +408,9 @@ class FlagService extends Component
     private function invalidateCache(string $flagHandle): void
     {
         Craft::$app->getCache()->delete(self::cacheKey($flagHandle));
+
+        // Results already evaluated in this process (a queue worker, a daemon, or the request
+        // that made the change) would otherwise keep returning the old answer.
+        FeatureFlags::getInstance()->evaluationService->clearEvaluationCache();
     }
 }
