@@ -20,6 +20,7 @@
 
 ### Fixed
 - On multi-site installs, choosing “Only specific sites” without switching on any site now fails validation instead of silently disabling the flag everywhere ([#20](https://github.com/CraftQuest/craft-feature-flags/issues/20))
+- Console commands no longer crash with an “Undefined constant” error when they fail (for example, an unknown flag handle or invalid input). They now print the error and exit with status 1
 
 ## 1.1.0 - 2026-06-05
 ### Added

@@ -114,7 +114,7 @@ class FlagsController extends Controller
 
         if (!$flag) {
             $this->stderr(Craft::t('feature-flags', 'Flag not found') . ": $handle" . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $this->stdout(PHP_EOL);
@@ -208,12 +208,12 @@ class FlagsController extends Controller
 
         if (!$flag) {
             $this->stderr(Craft::t('feature-flags', 'Flag not found') . ": $handle" . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         if (!FeatureFlags::getInstance()->flagService->toggleFlag($flag->id, true)) {
             $this->stderr(Craft::t('feature-flags', 'Could not toggle flag.') . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $this->stdout(Craft::t('feature-flags', 'Flag "{name}" enabled.', ['name' => $flag->name]) . PHP_EOL, Console::FG_GREEN);
@@ -231,12 +231,12 @@ class FlagsController extends Controller
 
         if (!$flag) {
             $this->stderr(Craft::t('feature-flags', 'Flag not found') . ": $handle" . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         if (!FeatureFlags::getInstance()->flagService->toggleFlag($flag->id, false)) {
             $this->stderr(Craft::t('feature-flags', 'Could not toggle flag.') . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $this->stdout(Craft::t('feature-flags', 'Flag "{name}" disabled.', ['name' => $flag->name]) . PHP_EOL, Console::FG_GREEN);
@@ -254,7 +254,7 @@ class FlagsController extends Controller
 
         if (!$flag) {
             $this->stderr(Craft::t('feature-flags', 'Flag not found') . ": $handle" . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         if (!$this->force && !$this->confirm(Craft::t('feature-flags', 'Are you sure you want to delete this flag?'))) {
@@ -264,7 +264,7 @@ class FlagsController extends Controller
 
         if (!FeatureFlags::getInstance()->flagService->deleteFlag($flag->id)) {
             $this->stderr(Craft::t('feature-flags', 'Could not delete flag.') . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $this->stdout(Craft::t('feature-flags', 'Flag "{name}" deleted.', ['name' => $flag->name]) . PHP_EOL, Console::FG_GREEN);
@@ -282,7 +282,7 @@ class FlagsController extends Controller
 
         if ($flagService->getFlagByHandle($handle)) {
             $this->stderr(Craft::t('feature-flags', 'A flag with the handle "{handle}" already exists.', ['handle' => $handle]) . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $allowedTypes = array_column(FlagType::cases(), 'value');
@@ -291,7 +291,7 @@ class FlagsController extends Controller
                 'type' => $this->type,
                 'types' => implode(', ', $allowedTypes),
             ]) . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $flag = new Flag();
@@ -303,7 +303,7 @@ class FlagsController extends Controller
 
         if (!$flagService->saveFlag($flag)) {
             $this->printModelErrors($flag);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $this->stdout(Craft::t('feature-flags', 'Flag "{name}" created.', ['name' => $flag->name]) . PHP_EOL, Console::FG_GREEN);
@@ -323,7 +323,7 @@ class FlagsController extends Controller
 
         if (!$flag) {
             $this->stderr(Craft::t('feature-flags', 'Flag not found') . ": $handle" . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         if (strtolower($percentage) === 'none') {
@@ -332,12 +332,12 @@ class FlagsController extends Controller
             $flag->rolloutPercentage = (int)$percentage;
         } else {
             $this->stderr(Craft::t('feature-flags', 'Percentage must be a whole number from 0 to 100, or "none".') . PHP_EOL, Console::FG_RED);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         if (!$flagService->saveFlag($flag)) {
             $this->printModelErrors($flag);
-            return ExitCode::UNPROCESSABLE_ENTITY;
+            return ExitCode::UNSPECIFIED_ERROR;
         }
 
         $label = $flag->rolloutPercentage !== null ? $flag->rolloutPercentage . '%' : Craft::t('feature-flags', 'none');
