@@ -9,7 +9,8 @@
   - `FlagService::EVENT_AFTER_DELETE_FLAG` → `events\FlagDeleted`
   - `FeatureFlags::EVENT_REGISTER_RULE_TYPES` → `events\RuleTypesResolving`
   - `EvaluationService::EVENT_EVALUATE_RULE` → `events\RuleEvaluating`
-- Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5. It runs on Craft 6 through `craftcms/yii2-adapter`, which is now a dependency. Sites on Craft 5 should stay on Feature Flags 1.x
+- Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5, and is built natively on Craft 6 (no `craftcms/yii2-adapter`). Sites on Craft 5 should stay on Feature Flags 1.x
+- The control panel screens are rebuilt with Craft 6's UI. To turn flags on or off from the list, select them and choose a status
 - MCP tools now register with Craft 6's MCP server
 - Console commands are now Artisan commands (`php artisan craft:feature-flags:flags:list`, etc.). The 1.x names (`php craft feature-flags/flags/list`) still work as aliases, and boolean options accept both `--enabled` and `--enabled=1`
 - `feature-flags/flags/cleanup-expired` no longer deletes anything in a non-interactive run (cron, CI) unless you pass `--force`. Under Craft 5 it confirmed automatically
