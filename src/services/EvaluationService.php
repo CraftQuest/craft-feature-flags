@@ -162,7 +162,7 @@ class EvaluationService extends Component
             return $this->anonymousVisitorId;
         }
 
-        if (!Craft::$app instanceof \craft\web\Application) {
+        if (app()->runningInConsole()) {
             return null;
         }
 
@@ -173,22 +173,26 @@ class EvaluationService extends Component
             return null;
         }
 
+        // Craft 6 builds the HTTP response with Laravel, so the visitor cookie is read from
+        // and queued on Laravel's request/response (cookies set on Yii's response are never
+        // sent). Laravel's web middleware encrypts the value and attaches queued cookies.
         $cookieName = $settings->anonymousCookieName;
-        $request = Craft::$app->getRequest();
-        $visitorId = $request->getCookies()->getValue($cookieName);
+        $request = request();
+        $visitorId = $request->cookie($cookieName);
 
-        if ($visitorId === null || $visitorId === '') {
+        if (!is_string($visitorId) || $visitorId === '') {
             $visitorId = StringHelper::UUID();
-            $cookie = new \yii\web\Cookie([
-                'name' => $cookieName,
-                'value' => $visitorId,
-                'expire' => time() + $settings->anonymousCookieTtl,
-                'path' => '/',
-                'httpOnly' => true,
-                'secure' => Craft::$app->getRequest()->getIsSecureConnection(),
-                'sameSite' => \yii\web\Cookie::SAME_SITE_LAX,
-            ]);
-            Craft::$app->getResponse()->getCookies()->add($cookie);
+            \Illuminate\Support\Facades\Cookie::queue(
+                $cookieName,
+                $visitorId,
+                (int)ceil($settings->anonymousCookieTtl / 60), // Laravel takes minutes
+                '/',
+                null,
+                $request->isSecure(),
+                true,
+                false,
+                'lax',
+            );
         }
 
         $this->anonymousVisitorId = $visitorId;
