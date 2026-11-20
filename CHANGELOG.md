@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.1 - Unreleased
+## 1.2.1 - 2026-11-20
 ### Fixed
 - When saving a flag in the control panel fails validation (for example, a handle that's already in use), the form now keeps what you entered and shows the field errors, instead of reloading the saved flag or an empty form
 - An existing flag whose handle is cleared now fails validation instead of silently getting a new handle generated from its name, which would turn it off everywhere the old handle is checked
