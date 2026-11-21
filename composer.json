@@ -62,7 +62,7 @@
   "config": {
     "sort-packages": true,
     "platform": {
-      "php": "8.2"
+      "php": "8.5"
     },
     "allow-plugins": {
       "yiisoft/yii2-composer": true,

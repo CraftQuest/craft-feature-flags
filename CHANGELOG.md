@@ -1,6 +1,17 @@
 # Changelog
 
 ## 2.0.0 - Unreleased
+
+> [!IMPORTANT]
+> **Upgrading from 1.x**
+> - Feature Flags 2.0 requires Craft CMS 6 and PHP 8.5. Upgrade the site to the latest Feature Flags 1.x on Craft 5 first, then require `craftquest/craft-feature-flags:^2.0` when you upgrade to Craft 6. Your flags, rules, site settings, and audit log carry over unchanged, with no data migration
+> - **Environment rules:** Craft 6 uses Laravel's environment names. A site that ran with `CRAFT_ENVIRONMENT=dev` typically runs with `APP_ENV=local`, so an `environment` rule with the value `dev` stops matching. Update those rules to the new environment name (`php artisan about` shows it)
+> - **Config file:** move `config/feature-flags.php` to `config/craft/feature-flags.php`
+> - **Events:** listeners registered with `Event::on()` must move to `Event::listen()` with the new event classes (see below)
+> - **Console:** scheduled `cleanup-expired` runs need `--force`
+> - Anonymous visitors keep their rollout buckets: the Craft 5 visitor cookie is read once and re-issued in the Craft 6 format
+> - Templates (`craft.featureFlags.isEnabled()`) and PHP calls through `FeatureFlags::getInstance()->evaluationService` need no changes
+
 ### Changed
 - **Breaking:** the plugin's events are now native Laravel event classes. Register listeners with `Event::listen()` (Laravel) instead of Yii's `Event::on()`. Listener code can stay the same: the event properties are unchanged.
   - `FlagService::EVENT_BEFORE_SAVE_FLAG` → `events\FlagSaving` (set `$isValid = false` to cancel)
