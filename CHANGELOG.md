@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 - Unreleased
+## 2.0.0-beta.1 - 2026-11-21
 
 > [!IMPORTANT]
 > **Upgrading from 1.x**
