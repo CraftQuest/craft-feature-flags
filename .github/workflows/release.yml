@@ -38,7 +38,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Tags with a pre-release suffix (2.0.0-beta.1, 2.1.0-RC.1) are published
+          # as pre-releases, so they never become the repo's "Latest" release.
+          FLAGS=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            FLAGS+=(--prerelease)
+          fi
+
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file release-notes.md \
-            --verify-tag
+            --verify-tag \
+            "${FLAGS[@]}"
